@@ -34,5 +34,8 @@ urlpatterns = [
     
     # Audio transcription
     path('transcribe/', views.transcribe_audio, name='transcribe-audio'),
+
+    # Submit all answers at once — single Gemini holistic evaluation (BUG-04 fix)
+    path('submit-all/', views.submit_all, name='submit-all'),
 ]
 

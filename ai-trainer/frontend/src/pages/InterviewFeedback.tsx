@@ -24,22 +24,44 @@ interface QuestionAnswer {
 export const InterviewFeedback = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  
-  const session = location.state?.session;
+
+  // New flow: { evaluation, sessionId }
+  const evaluation = location.state?.evaluation;
+  // Old flow: { session, feedback, answers }
+  const session  = location.state?.session;
   const feedback = location.state?.feedback;
   const answers: QuestionAnswer[] = location.state?.answers || [];
-  
+
   const [expandedQuestion, setExpandedQuestion] = useState<number | null>(0);
 
-  // Use real session data - show NA for missing values
-  const overallScore = session?.overall_score;
-  const communicationScore = session?.communication_score;
-  const technicalScore = session?.technical_score;
-  const confidenceScore = session?.confidence_score;
-  
-  // Use real feedback data - no fake defaults
-  const strengths: string[] = feedback?.strengths || [];
-  const improvements: string[] = feedback?.weaknesses || [];
+  // ── Extract scores ── prefer new evaluation, fall back to session
+  const scores = evaluation?.scores || {};
+  const overallScore       = evaluation
+    ? (evaluation.overall_score ?? 0) * 10          // Gemini returns 0-10, display as 0-100
+    : session?.overall_score;
+  const communicationScore = evaluation
+    ? (scores.communication ?? 0) * 10
+    : session?.communication_score;
+  const technicalScore = evaluation
+    ? (scores.technical ?? 0) * 10
+    : session?.technical_score;
+  const confidenceScore = evaluation
+    ? (scores.confidence ?? 0) * 10
+    : session?.confidence_score;
+
+  // ── Strengths / improvements ──
+  const strengths: string[]    = evaluation
+    ? (evaluation.top_strength ? [evaluation.top_strength] : [])
+    : (feedback?.strengths || []);
+  const improvements: string[] = evaluation
+    ? (evaluation.top_weakness ? [evaluation.top_weakness] : [])
+    : (feedback?.weaknesses || []);
+  const recommendations: string[] = evaluation?.recommendations || [];
+  const summary: string = evaluation?.summary || feedback?.overall_summary || '';
+  const placement: string = evaluation?.placement_readiness || '';
+
+  // ── Per-question results from submit-all ──
+  const questionResults: any[] = evaluation?.question_results || [];
 
   const getScoreColor = (score: number) => {
     if (score >= 80) return 'text-green-500';
@@ -153,13 +175,90 @@ export const InterviewFeedback = () => {
             </div>
           </div>
 
+          {/* Summary + Recommendations (new submit-all flow) */}
+          {(summary || recommendations.length > 0) && (
+            <div className="grid md:grid-cols-2 gap-6 mb-8">
+              {summary && (
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                  <h2 className="font-bold text-gray-800 mb-3">Overall Assessment</h2>
+                  <p className="text-sm text-gray-600 leading-relaxed">{summary}</p>
+                  {placement && (
+                    <span className="inline-block mt-4 px-3 py-1 bg-primary-light text-primary text-xs font-bold rounded-full capitalize">
+                      {placement.replace(/_/g, ' ')}
+                    </span>
+                  )}
+                </div>
+              )}
+              {recommendations.length > 0 && (
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                  <h2 className="font-bold text-gray-800 mb-3">🎯 Recommendations</h2>
+                  <ul className="space-y-3">
+                    {recommendations.map((rec: string, i: number) => (
+                      <li key={i} className="flex items-start gap-3 text-sm text-gray-600">
+                        <span className="text-primary mt-0.5 font-bold">{i + 1}.</span>
+                        {rec}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Question Breakdown */}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mb-8">
             <div className="p-4 border-b border-gray-200 bg-gray-50">
               <h2 className="font-bold text-gray-800">Question-by-Question Breakdown</h2>
             </div>
-            
-            {answers.length > 0 ? (
+
+            {questionResults.length > 0 ? (
+              /* New flow: per-question results from submit-all */
+              questionResults.map((qr: any, index: number) => {
+                const scoreVal = Math.round((qr.score ?? 0) * 10);
+                return (
+                  <div key={index} className="border-b border-gray-100 last:border-0">
+                    <button
+                      onClick={() => setExpandedQuestion(expandedQuestion === index ? null : index)}
+                      className="w-full p-4 text-left flex items-center justify-between hover:bg-gray-50"
+                    >
+                      <div className="flex items-center gap-4">
+                        <span className="w-8 h-8 rounded-full bg-primary-light text-primary font-bold flex items-center justify-center text-sm">
+                          Q{qr.question_index}
+                        </span>
+                        <p className="font-medium text-gray-800 text-sm line-clamp-1">
+                          {qr.strength || 'See feedback below'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`font-bold ${getScoreColor(scoreVal)}`}>{scoreVal}%</span>
+                        {expandedQuestion === index
+                          ? <ChevronUp className="w-5 h-5 text-gray-400" />
+                          : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                      </div>
+                    </button>
+                    {expandedQuestion === index && (
+                      <div className="px-4 pb-4 bg-gray-50">
+                        <div className="ml-12 space-y-3">
+                          {qr.feedback && (
+                            <div>
+                              <p className="text-xs font-bold text-gray-500 uppercase mb-1">AI Feedback</p>
+                              <p className="text-sm text-gray-700 bg-blue-50 p-3 rounded-lg border border-blue-200">{qr.feedback}</p>
+                            </div>
+                          )}
+                          {qr.improvement && (
+                            <div>
+                              <p className="text-xs font-bold text-gray-500 uppercase mb-1">Improvement Area</p>
+                              <p className="text-sm text-gray-600 bg-yellow-50 p-3 rounded-lg border border-yellow-200">→ {qr.improvement}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            ) : answers.length > 0 ? (
+              /* Old flow: session answers */
               answers.map((qa, index) => (
                 <div key={index} className="border-b border-gray-100 last:border-0">
                   <button
@@ -171,9 +270,7 @@ export const InterviewFeedback = () => {
                         Q{qa.question.question_number}
                       </span>
                       <div>
-                        <p className="font-medium text-gray-800 line-clamp-1">
-                          {qa.question.question_text}
-                        </p>
+                        <p className="font-medium text-gray-800 line-clamp-1">{qa.question.question_text}</p>
                         <p className="text-sm text-gray-500">{qa.question.category}</p>
                       </div>
                     </div>
@@ -181,27 +278,22 @@ export const InterviewFeedback = () => {
                       <span className={`font-bold ${getScoreColor(qa.feedback?.score || 70)}`}>
                         {qa.feedback?.score || 70}%
                       </span>
-                      {expandedQuestion === index ? (
-                        <ChevronUp className="w-5 h-5 text-gray-400" />
-                      ) : (
-                        <ChevronDown className="w-5 h-5 text-gray-400" />
-                      )}
+                      {expandedQuestion === index
+                        ? <ChevronUp className="w-5 h-5 text-gray-400" />
+                        : <ChevronDown className="w-5 h-5 text-gray-400" />}
                     </div>
                   </button>
-                  
                   {expandedQuestion === index && (
                     <div className="px-4 pb-4 bg-gray-50">
                       <div className="ml-12 space-y-4">
                         <div>
                           <p className="text-xs font-bold text-gray-500 uppercase mb-1">Your Answer</p>
-                          <p className="text-sm text-gray-700 bg-white p-3 rounded-lg border border-gray-200">
-                            {qa.answer}
-                          </p>
+                          <p className="text-sm text-gray-700 bg-white p-3 rounded-lg border border-gray-200">{qa.answer}</p>
                         </div>
                         <div>
                           <p className="text-xs font-bold text-gray-500 uppercase mb-1">AI Feedback</p>
                           <p className="text-sm text-gray-700 bg-blue-50 p-3 rounded-lg border border-blue-200">
-                            {qa.feedback?.ai_feedback || 'Good attempt! Focus on providing more specific examples.'}
+                            {qa.feedback?.ai_feedback || 'Good attempt!'}
                           </p>
                         </div>
                       </div>
@@ -210,9 +302,7 @@ export const InterviewFeedback = () => {
                 </div>
               ))
             ) : (
-              <div className="p-8 text-center text-gray-500">
-                No question data available
-              </div>
+              <div className="p-8 text-center text-gray-500">No question data available</div>
             )}
           </div>
 

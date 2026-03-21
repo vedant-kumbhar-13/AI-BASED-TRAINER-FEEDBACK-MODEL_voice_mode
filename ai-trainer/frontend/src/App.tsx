@@ -11,11 +11,18 @@ import { ResumeSummary } from './pages/ResumeSummary';
 import { InterviewSessionPage } from './pages/InterviewSession';
 import { InterviewFeedback } from './pages/InterviewFeedback';
 import { InterviewHistory } from './pages/InterviewHistory';
+import Interview from './pages/Interview';
 
 // Learning Pages
 import { Learning } from './pages/Learning';
 import { Quiz } from './pages/Quiz';
 import { QuizResults } from './pages/QuizResults';
+
+// Wrapper: reads resumeId from localStorage so Interview receives it as a prop
+function InterviewWrapper() {
+  const resumeId = localStorage.getItem('resume_id') || '';
+  return <Interview resumeId={resumeId} />;
+}
 
 function App() {
   return (
@@ -32,6 +39,13 @@ function App() {
           </ProtectedRoute>
         } />
         
+        {/* New Interview Module Route */}
+        <Route path="/interview" element={
+          <ProtectedRoute>
+            <InterviewWrapper />
+          </ProtectedRoute>
+        } />
+
         {/* AI Interview Routes */}
         <Route path="/ai-interview" element={
           <ProtectedRoute>

@@ -356,9 +356,9 @@ export const DashboardHome = () => {
             <div className="flex flex-col sm:flex-row gap-3">
               <Link
                 to="/ai-interview"
-                className="px-6 py-3 bg-primary hover:bg-primary-dark text-white font-bold text-sm rounded-lg shadow-button whitespace-nowrap transition"
+                className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold text-sm rounded-lg shadow-button whitespace-nowrap transition"
               >
-                Start new interview
+                🎙️ Start Interview
               </Link>
               <Link
                 to="/ai-interview-history"

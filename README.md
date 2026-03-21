@@ -2,15 +2,17 @@
 
 <div align="center">
 
-![AI Trainer Banner](https://img.shields.io/badge/AI-Powered-blueviolet?style=for-the-badge&logo=openai&logoColor=white)
+![AI Trainer](https://img.shields.io/badge/AI-Powered-blueviolet?style=for-the-badge&logo=google&logoColor=white)
 ![React](https://img.shields.io/badge/React-19.2.0-61DAFB?style=for-the-badge&logo=react&logoColor=white)
 ![Django](https://img.shields.io/badge/Django-4.2-092E20?style=for-the-badge&logo=django&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
-![TailwindCSS](https://img.shields.io/badge/Tailwind-3.4-38B2AC?style=for-the-badge&logo=tailwindcss&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38B2AC?style=for-the-badge&logo=tailwindcss&logoColor=white)
+![Gemini AI](https://img.shields.io/badge/Gemini-2.5_Flash-4285F4?style=for-the-badge&logo=google&logoColor=white)
+![Web Speech API](https://img.shields.io/badge/Voice-Web_Speech_API-orange?style=for-the-badge&logo=googlechrome&logoColor=white)
 
-An intelligent training platform that leverages AI to conduct mock interviews, provide personalized feedback, and help users master aptitude concepts through interactive learning.
+An intelligent training platform that leverages Google Gemini AI to conduct personalised mock interviews, provide holistic feedback, and help users master aptitude concepts through interactive video-based learning.
 
-[Features](#-features) • [Tech Stack](#-tech-stack) • [Installation](#-installation) • [Usage](#-usage) • [Project Structure](#-project-structure)
+[Features](#-features) • [Tech Stack](#-tech-stack) • [Installation](#-installation) • [API Reference](#-api-reference) • [Project Structure](#-project-structure)
 
 </div>
 
@@ -18,32 +20,38 @@ An intelligent training platform that leverages AI to conduct mock interviews, p
 
 ## ✨ Features
 
-### 🎙️ AI-Powered Mock Interviews
+### 🎙️ AI-Powered Mock Interviews (Voice Mode)
 
-- **Voice-Enabled Interactions** - Speech-to-Text (Whisper) and Text-to-Speech capabilities
-- **Dynamic Question Generation** - AI generates relevant interview questions based on resume and job role
-- **Real-time Feedback** - Get unbiased, constructive feedback on your responses
-- **Performance Analytics** - Track your interview performance trends over time
+- **Browser-Native Voice Input** — Uses the **Web Speech API** (built into Chrome/Edge) for real-time speech-to-text. No API key required.
+- **Text-to-Speech Read-Back** — Interview questions are read aloud by the browser automatically.
+- **Dynamic Question Generation** — Google Gemini generates 8 personalised interview questions from your uploaded resume in a single AI call.
+- **Holistic AI Evaluation** — All answers submitted at once for a single-pass Gemini evaluation, returning:
+  - Overall score (0–100)
+  - Per-dimension scores: Communication, Technical, Confidence, HR
+  - Per-question feedback, strength, and improvement
+  - Placement readiness label + top 3 recommendations
+- **Review Before Submit** — Review and edit any answer before final submission.
+- **Interview History** — Full history of past sessions with scores and feedback.
 
 ### 📚 Aptitude Training Module
 
-- **5 Core Topics** - Percentage, Number Series, Profit & Loss, Ratio & Proportion, Time & Work
-- **Video Tutorials** - Embedded YouTube lectures for each topic
-- **Interactive Quizzes** - Test your understanding with topic-wise assessments
-- **Progress Tracking** - Monitor your learning journey with detailed analytics
+- **5 Core Topics** — Percentage, Number Series, Profit & Loss, Ratio & Proportion, Time & Work
+- **Video Tutorials** — Embedded YouTube lectures for each topic
+- **Interactive Quizzes** — Topic-wise assessments with instant scoring
+- **Progress Tracking** — Monitor improvement over time
 
-### 📊 Personalized Dashboard
+### 📊 Personalised Dashboard
 
-- **Performance Metrics** - Visual representation of your progress
-- **Interview History** - Review past interview sessions
-- **Aptitude Scores** - Track quiz scores and improvement over time
-- **Resume Analysis** - AI-powered keyword extraction from your resume
+- Performance metrics with visual charts
+- Interview history with status filters
+- Resume analysis with AI-parsed skills/experience
+- Quick-start interview button
 
-### 🔐 User Authentication
+### 🔐 Secure Authentication
 
-- **Secure JWT Authentication** - Token-based authentication system
-- **User Profile Management** - Personalized user profiles with avatar support
-- **Session Management** - Secure session handling
+- JWT token-based authentication (access + refresh tokens)
+- Protected API routes
+- Persistent login sessions
 
 ---
 
@@ -51,31 +59,30 @@ An intelligent training platform that leverages AI to conduct mock interviews, p
 
 ### Frontend
 
-| Technology      | Purpose            |
-| --------------- | ------------------ |
-| React 19        | UI Library         |
-| TypeScript      | Type Safety        |
-| Vite            | Build Tool         |
-| Tailwind CSS    | Styling            |
-| Zustand         | State Management   |
-| React Router v7 | Navigation         |
-| Recharts        | Data Visualization |
-| Axios           | HTTP Client        |
-| Lucide React    | Icons              |
+| Technology        | Version   | Purpose                      |
+|-------------------|-----------|------------------------------|
+| React             | 19.2.0    | UI Library                   |
+| TypeScript        | 5.9       | Type Safety                  |
+| Vite              | 7.x       | Build Tool                   |
+| Tailwind CSS      | 3.4       | Styling                      |
+| React Router      | v7        | Client-side Routing          |
+| Recharts          | latest    | Charts & Analytics           |
+| Axios             | latest    | HTTP Client                  |
+| Lucide React      | latest    | Icon Library                 |
+| Web Speech API    | Built-in  | Voice Input (STT)            |
+| SpeechSynthesis   | Built-in  | Voice Output (TTS)           |
 
 ### Backend
 
-| Technology            | Purpose                 |
-| --------------------- | ----------------------- |
-| Django 4.2            | Web Framework           |
-| Django REST Framework | API Development         |
-| Simple JWT            | Authentication          |
-| Google Generative AI  | AI Interview & Feedback |
-| Groq                  | LLM Integration         |
-| gTTS                  | Text-to-Speech          |
-| Librosa               | Audio Processing        |
-| Celery + Redis        | Task Queue              |
-| SQLite                | Database                |
+| Technology             | Version | Purpose                        |
+|------------------------|---------|--------------------------------|
+| Django                 | 4.2     | Web Framework                  |
+| Django REST Framework  | 3.x     | REST API                       |
+| Simple JWT             | 5.x     | JWT Authentication             |
+| Google Generative AI   | 0.7.x   | AI Questions & Evaluation      |
+| python-decouple        | 3.x     | Environment Config             |
+| PyMuPDF / pdfminer     | latest  | Resume PDF Parsing             |
+| SQLite                 | built-in| Database                       |
 
 ---
 
@@ -85,173 +92,207 @@ An intelligent training platform that leverages AI to conduct mock interviews, p
 
 - **Node.js** >= 18.x
 - **Python** >= 3.10
-- **pip** (Python package manager)
+- **pip**
 - **Git**
+- A **Google Gemini API key** — [Get one free](https://aistudio.google.com/app/apikey)
 
-### Clone the Repository
+### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/vedant-kumbhar-13/AI-BASED-TRAINER-FEEDBACK-MODEL.git
-cd AI-BASED-TRAINER-FEEDBACK-MODEL
+git clone https://github.com/vedant-kumbhar-13/AI-BASED-TRAINER-FEEDBACK-MODEL_voice_mode.git
+cd AI-BASED-TRAINER-FEEDBACK-MODEL_voice_mode
 ```
 
-### Backend Setup
+### 2. Backend Setup
 
-1. **Navigate to backend directory**
+```bash
+# Navigate to backend
+cd ai-trainer/backend
 
-   ```bash
-   cd ai-trainer/backend
-   ```
+# Create and activate virtual environment
+python -m venv venv
 
-2. **Create and activate virtual environment**
+# Windows
+venv\Scripts\activate
+# Linux / macOS
+source venv/bin/activate
 
-   ```bash
-   # Windows
-   python -m venv venv
-   venv\Scripts\activate
+# Install dependencies
+pip install -r requirements.txt
+```
 
-   # Linux/Mac
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
+**Create `.env` file** in `ai-trainer/backend/`:
 
-3. **Install dependencies**
+```env
+# Required
+SECRET_KEY=your-django-secret-key-here
+GEMINI_API_KEY=your-google-gemini-api-key-here
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+# Optional (defaults work for local dev)
+DEBUG=True
+DATABASE_URL=sqlite:///db.sqlite3
+ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174
+MAX_INTERVIEW_QUESTIONS=8
+INTERVIEW_DURATION_MINUTES=30
+DEFAULT_INTERVIEW_TYPE=Technical
+MAX_RESUME_SIZE_MB=10
+```
 
-4. **Configure environment variables**
+```bash
+# Apply database migrations
+python manage.py migrate
 
-   Create a `.env` file in the backend directory:
+# Create superuser (optional, for admin access)
+python manage.py createsuperuser
 
-   ```env
-   SECRET_KEY=your-django-secret-key
-   DEBUG=True
-   GEMINI_API_KEY=your-google-gemini-api-key
-   GROQ_API_KEY=your-groq-api-key
-   ```
+# Start the backend server
+python manage.py runserver
+```
 
-5. **Run database migrations**
+Backend API runs at → **http://localhost:8000**
 
-   ```bash
-   python manage.py migrate
-   ```
+### 3. Frontend Setup
 
-6. **Start the backend server**
-   ```bash
-   python manage.py runserver
-   ```
-   The backend API will be available at `http://localhost:8000`
+```bash
+# Navigate to frontend (from repo root)
+cd ai-trainer/frontend
 
-### Frontend Setup
+# Install dependencies
+npm install
 
-1. **Navigate to frontend directory**
+# Start dev server
+npm run dev
+```
 
-   ```bash
-   cd ai-trainer/frontend
-   ```
-
-2. **Install dependencies**
-
-   ```bash
-   npm install
-   ```
-
-3. **Start the development server**
-   ```bash
-   npm run dev
-   ```
-   The frontend will be available at `http://localhost:5173`
+Frontend runs at → **http://localhost:5173**
 
 ---
 
 ## 🚀 Usage
 
-1. **Register/Login** - Create an account or login to access the platform
-2. **Upload Resume** - Upload your resume for AI analysis and keyword extraction
-3. **Start Interview** - Begin an AI-powered mock interview session
-4. **Learn Aptitude** - Access video tutorials and take quizzes on various topics
-5. **Track Progress** - View your performance analytics on the dashboard
+1. **Register / Login** at `http://localhost:5173`
+2. **Dashboard** — see your stats and quick-start buttons
+3. **🎙️ Start Interview**:
+   - Upload your resume (PDF)
+   - Choose interview type (Technical / HR / Behavioral / Mixed)
+   - AI generates 8 personalised questions — reads them aloud
+   - Click **Speak** to answer by voice (real-time transcript) or type manually
+   - Review & edit all answers before submitting
+   - Get a full AI feedback report with scores and recommendations
+4. **Aptitude** — watch topic videos, take quizzes
+5. **History** — review all past interview sessions
+
+> **Voice Input Note:** Voice input requires a Chromium browser (Chrome, Edge, Brave). The Web Speech API is not supported in Firefox for continuous speech recognition.
 
 ---
 
 ## 📁 Project Structure
 
 ```
-AI-BASED-TRAINER-FEEDBACK-MODEL/
+AI-BASED-TRAINER-FEEDBACK-MODEL_voice_mode/
 ├── ai-trainer/
-│   ├── frontend/                 # React + TypeScript Frontend
+│   ├── frontend/                   # React + TypeScript SPA
 │   │   ├── src/
-│   │   │   ├── components/       # Reusable UI components
-│   │   │   ├── pages/            # Page components
-│   │   │   ├── services/         # API service functions
-│   │   │   ├── stores/           # Zustand state stores
-│   │   │   ├── types/            # TypeScript type definitions
-│   │   │   └── data/             # Static data files
-│   │   ├── public/               # Static assets
+│   │   │   ├── components/
+│   │   │   │   └── dashboard/      # Navigation, sidebar, section cards
+│   │   │   ├── pages/
+│   │   │   │   ├── AIInterviewLanding.tsx   # Interview entry page
+│   │   │   │   ├── ResumeUpload.tsx         # Resume upload step
+│   │   │   │   ├── ResumeSummary.tsx        # Interview config step
+│   │   │   │   ├── InterviewSession.tsx     # Voice interview session
+│   │   │   │   └── InterviewFeedback.tsx    # Results & feedback
+│   │   │   ├── services/
+│   │   │   │   ├── authService.ts           # JWT auth helpers
+│   │   │   │   ├── interviewAPI.ts          # Interview API calls
+│   │   │   │   └── api/interview.js         # startSession / submitAll
+│   │   │   └── App.tsx                      # Router config
 │   │   └── package.json
 │   │
-│   └── backend/                  # Django REST API Backend
-│       ├── accounts/             # User authentication
-│       ├── apps/                 # Application modules
-│       │   └── interview/        # AI interview module
-│       ├── aptitude/             # Aptitude module
-│       ├── dashboard/            # Dashboard analytics
-│       ├── learning/             # Learning module
-│       ├── media/                # User uploads
-│       ├── utils/                # Utility functions
+│   └── backend/                    # Django REST API
+│       ├── apps/
+│       │   └── interview/
+│       │       ├── models.py        # Resume, Session, Question, Answer, EvaluationResult
+│       │       ├── views.py         # start_interview, submit_all, transcribe_audio
+│       │       └── urls.py
+│       ├── services/
+│       │   └── openai_service.py    # Gemini question generation & evaluation
+│       ├── ai_trainer/
+│       │   └── settings.py
 │       ├── manage.py
 │       └── requirements.txt
 │
-└── data_set/                     # Training data files
-    └── Aptitude_Final.xlsx       # Aptitude topics data
+└── data_set/
+    └── Aptitude_Final.xlsx         # Aptitude questions dataset
 ```
 
 ---
 
-## 🔧 API Endpoints
+## 🔧 API Reference
 
 ### Authentication
 
-| Method | Endpoint                   | Description       |
-| ------ | -------------------------- | ----------------- |
-| POST   | `/api/auth/register/`      | User registration |
-| POST   | `/api/auth/login/`         | User login        |
-| POST   | `/api/auth/token/refresh/` | Refresh JWT token |
+| Method | Endpoint                    | Description       |
+|--------|-----------------------------|-------------------|
+| POST   | `/api/auth/register/`       | Register user     |
+| POST   | `/api/auth/login/`          | Login (JWT)       |
+| POST   | `/api/auth/token/refresh/`  | Refresh token     |
 
 ### Interview
 
-| Method | Endpoint                  | Description               |
-| ------ | ------------------------- | ------------------------- |
-| POST   | `/api/interview/start/`   | Start interview session   |
-| POST   | `/api/interview/respond/` | Submit interview response |
-| GET    | `/api/interview/history/` | Get interview history     |
+| Method | Endpoint                          | Description                              |
+|--------|-----------------------------------|------------------------------------------|
+| POST   | `/api/interview/resume/`          | Upload & parse resume (PDF)              |
+| GET    | `/api/interview/resume/`          | List user's resumes                      |
+| POST   | `/api/interview/start/`           | Start session → returns `{session_id, questions[]}` |
+| POST   | `/api/interview/submit-all/`      | Submit all 8 answers → full AI evaluation |
+| GET    | `/api/interview/history/`         | Get paginated session history            |
+| GET    | `/api/interview/stats/`           | Get aggregate interview stats            |
+| DELETE | `/api/interview/<session_id>/`    | Delete a session                         |
 
-### Dashboard
+### Dashboard & Aptitude
 
-| Method | Endpoint                      | Description             |
-| ------ | ----------------------------- | ----------------------- |
-| GET    | `/api/dashboard/stats/`       | Get user statistics     |
-| GET    | `/api/dashboard/performance/` | Get performance metrics |
+| Method | Endpoint                          | Description              |
+|--------|-----------------------------------|--------------------------|
+| GET    | `/api/dashboard/stats/`           | User statistics          |
+| GET    | `/api/aptitude/topics/`           | Aptitude topic list      |
+| POST   | `/api/aptitude/submit/`           | Submit quiz answers      |
+
+---
+
+## 🎙️ How Voice Input Works
+
+The interview uses the browser-native **Web Speech API** — no external service or API key needed.
+
+```
+User clicks "Speak"
+      ↓
+SpeechRecognition starts (continuous mode)
+      ↓
+Interim transcript displayed in real time below textarea
+      ↓
+Final words appended to answer textarea
+      ↓
+User clicks "Stop" or moves to next question
+```
+
+**Supported browsers:** Chrome 33+, Edge 79+, Opera 20+
+**Not supported:** Firefox, Safari (partial)
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please follow these steps:
-
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Commit your changes: `git commit -m "Add my feature"`
+4. Push: `git push origin feature/my-feature`
 5. Open a Pull Request
 
 ---
 
 ## 📝 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License — see [LICENSE](LICENSE) for details.
 
 ---
 
@@ -265,8 +306,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 <div align="center">
 
-Made with ❤️ for better learning experiences
+Made with ❤️ for better interview preparation
 
-⭐ Star this repository if you find it helpful!
+⭐ Star this repo if you find it helpful!
 
 </div>

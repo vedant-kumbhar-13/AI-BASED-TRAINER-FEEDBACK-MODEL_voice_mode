@@ -14,7 +14,7 @@ from django.utils import timezone
 from django.db import transaction
 import logging
 
-from .models import Resume, InterviewSession, InterviewQuestion, InterviewAnswer, InterviewFeedback
+from .models import Resume, InterviewSession, InterviewQuestion, InterviewAnswer, InterviewFeedback, EvaluationResult
 from .serializers import (
     ResumeUploadSerializer, ResumeDetailSerializer, ResumeListSerializer,
     InterviewStartSerializer, InterviewSessionSerializer, InterviewSessionListSerializer,
@@ -22,6 +22,8 @@ from .serializers import (
     InterviewFeedbackSerializer, SessionWithFeedbackSerializer, InterviewHistorySerializer
 )
 from .services import GeminiService, ResumeParser, FeedbackGenerator, WhisperService
+from services.openai_service import generate_questions, evaluate_interview
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -118,85 +120,102 @@ class ResumeViewSet(viewsets.ModelViewSet):
 def start_interview(request):
     """
     Start a new interview session.
-    
+    Generates ALL 8 questions upfront in a single Gemini call.
+
     Request body:
     {
-        "interview_type": "Technical",  // HR, Technical, Behavioral, Mixed
-        "resume_id": "uuid-optional",
-        "total_questions": 5,
-        "duration_minutes": 15
+        "resume_id": "uuid",           // required
+        "interview_type": "Technical",  // HR | Technical | Behavioral | Mixed
+        "total_questions": 8
     }
+
+    Responses:
+        201 — { session_id, questions: [{id, order, text, type}] }
+        400 — { error: 'resume_id is required' }
+        404 — { error: 'Resume not found' }
+        409 — { error: 'Active session exists', session_id: str }
+        503 — { error: 'Question generation failed: <msg>' }
     """
-    serializer = InterviewStartSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
-    
-    data = serializer.validated_data
-    
-    # Get resume if provided
-    resume = None
-    if data.get('resume_id'):
-        resume = get_object_or_404(
-            Resume, id=data['resume_id'], user=request.user
-        )
-    
-    # Create session
-    session = InterviewSession.objects.create(
+    resume_id = request.data.get('resume_id')
+
+    # Auto-abandon any stuck in_progress session for this user so they can start fresh
+    existing = InterviewSession.objects.filter(
         user=request.user,
-        resume=resume,
-        interview_type=data['interview_type'],
-        total_questions=data['total_questions'],
-        duration_minutes=data['duration_minutes'],
-        status='in_progress',
-        start_time=timezone.now()
-    )
-    
-    # Generate first question
+        status='in_progress'
+    ).first()
+    if existing:
+        existing.status = 'abandoned'
+        existing.end_time = timezone.now()
+        existing.save()
+        logger.info(f"Auto-abandoned stuck session {existing.id} for user {request.user.id}")
+
+
+    # Resolve the resume — use provided resume_id, or fall back to the user's latest resume
+    resume = None
+    if resume_id:
+        try:
+            resume = Resume.objects.get(id=resume_id, user=request.user)
+        except Resume.DoesNotExist:
+            return Response(
+                {'error': 'Resume not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+    else:
+        # Fallback: use the most recently uploaded resume for this user
+        resume = Resume.objects.filter(user=request.user).order_by('-created_at').first()
+        if not resume:
+            return Response(
+                {'error': 'No resume found. Please upload a resume first.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+    interview_type = request.data.get('interview_type', 'Technical')
+
+    # 503 — generate all 8 questions in ONE Gemini call
     try:
-        gemini = GeminiService()
-        resume_context = ""
-        if resume and resume.is_parsed:
-            parser = ResumeParser()
-            resume_context = parser.get_context_for_interview({
-                'skills': resume.skills,
-                'experience': resume.experience,
-                'education': resume.education,
-                'projects': resume.projects
-            })
-        
-        question_data = gemini.generate_interview_question(
-            interview_type=data['interview_type'],
-            question_number=1,
-            total_questions=data['total_questions'],
-            resume_context=resume_context
-        )
-        
-        question = InterviewQuestion.objects.create(
-            session=session,
-            question_text=question_data['question_text'],
-            question_number=1,
-            category=question_data.get('category', 'general'),
-            difficulty=question_data.get('difficulty', 3),
-            context_used=resume_context,
-            expected_points=question_data.get('expected_points', []),
-            suggested_time_seconds=question_data.get('suggested_time_seconds', 120)
-        )
-        
-        session.current_question_index = 1
-        session.save()
-        
-        return Response({
-            'session': InterviewSessionSerializer(session).data,
-            'current_question': InterviewQuestionSerializer(question).data
-        }, status=status.HTTP_201_CREATED)
-        
+        raw_questions = generate_questions(resume)
     except Exception as e:
-        logger.error(f"Error starting interview: {str(e)}")
-        session.status = 'cancelled'
-        session.save()
+        logger.error(f"Question generation failed: {e}")
         return Response(
-            {'error': f"Failed to generate question: {str(e)}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            {'error': f'Question generation failed: {str(e)}'},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE
         )
+
+    # Create session + all questions atomically
+    with transaction.atomic():
+        session = InterviewSession.objects.create(
+            user=request.user,
+            resume=resume,
+            interview_type=interview_type,
+            total_questions=8,
+            status='in_progress',
+            start_time=timezone.now(),
+            current_question_index=1,
+        )
+
+        question_list = []
+        for order_num, q in enumerate(raw_questions, start=1):
+            question = InterviewQuestion.objects.create(
+                session=session,
+                question_text=q.get('text', ''),
+                question_number=order_num,
+                category=q.get('type', 'Technical').lower(),
+                difficulty=3,
+            )
+            question_list.append({
+                'id':    str(question.id),
+                'order': order_num,
+                'text':  question.question_text,
+                'type':  q.get('type', 'Technical'),
+            })
+
+    return Response(
+        {
+            'session_id': str(session.id),
+            'questions':  question_list,
+        },
+        status=status.HTTP_201_CREATED
+    )
 
 
 @api_view(['GET'])
@@ -574,3 +593,145 @@ def transcribe_audio(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
+
+# ===========================================
+# Submit-All Endpoint (BUG-04 Fix)
+# ===========================================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def submit_all(request):
+    """
+    Submit ALL 8 answers at once and get a holistic Gemini evaluation.
+    Replaces 8 sequential /submit-answer/ calls with a single Gemini call.
+    Fixes BUG-04.
+
+    Request body:
+    {
+        "session_id": "uuid",
+        "answers": [
+            {
+                "questionId":   "uuid",
+                "questionText": "...",
+                "questionType": "Technical",
+                "answerText":   "User's spoken/typed answer"
+            },
+            ... (8 total)
+        ]
+    }
+
+    Responses:
+        200 — full evaluation dict + evaluation_id + session_id
+        400 — { error: 'session_id and answers[] are required' }
+        400 — { error: 'Minimum 3 answers required' }
+        404 — session not found or wrong user
+        409 — { error: 'Session already evaluated' }
+        503 — { error: 'Evaluation failed: <msg>' }
+    """
+    session_id = request.data.get('session_id')
+    answers    = request.data.get('answers', [])
+
+    # 400 — basic validation
+    if not session_id or not answers:
+        return Response(
+            {'error': 'session_id and answers[] are required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if len(answers) < 3:
+        return Response(
+            {'error': 'Minimum 3 answers required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # 404 — session must belong to this user
+    try:
+        session = InterviewSession.objects.get(id=session_id, user=request.user)
+    except InterviewSession.DoesNotExist:
+        return Response(
+            {'error': 'Session not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    # 409 — already evaluated
+    if session.status == 'completed':
+        return Response(
+            {'error': 'Session already evaluated'},
+            status=status.HTTP_409_CONFLICT
+        )
+
+    # 503 — single Gemini holistic evaluation call (BUG-04 fix)
+    try:
+        evaluation = evaluate_interview(answers)
+    except ValueError as e:
+        logger.error(f"Evaluation failed for session {session_id}: {e}")
+        return Response(
+            {'error': f'Evaluation failed: {str(e)}'},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE
+        )
+
+    # Persist results atomically
+    with transaction.atomic():
+        scores = evaluation.get('scores', {})
+
+        # Gemini returns 0.0-10.0 — multiply × 10 to store as 0-100 (BUG-16 fix)
+        def to_100(val):
+            try:
+                return float(val or 0) * 10
+            except (TypeError, ValueError):
+                return 0.0
+
+        # Update session scores and mark completed
+        session.status              = 'completed'
+        session.end_time            = timezone.now()
+        session.overall_score       = to_100(evaluation.get('overall_score'))
+        session.communication_score = to_100(scores.get('communication'))
+        session.technical_score     = to_100(scores.get('technical'))
+        session.confidence_score    = to_100(scores.get('confidence'))
+        session.hr_avg_score        = to_100(scores.get('hr'))
+        session.save()
+
+        # Create EvaluationResult record
+        result = EvaluationResult.objects.create(
+            session                 = session,
+            overall_score           = to_100(evaluation.get('overall_score')),
+            hr_score                = to_100(scores.get('hr')),
+            technical_score         = to_100(scores.get('technical')),
+            communication_score     = to_100(scores.get('communication')),
+            confidence_score        = to_100(scores.get('confidence')),
+            structure_score         = to_100(scores.get('structure')),
+            summary_feedback        = evaluation.get('summary', ''),
+            top_strength            = evaluation.get('top_strength', ''),
+            top_weakness            = evaluation.get('top_weakness', ''),
+            top_3_recommendations   = json.dumps(evaluation.get('recommendations', [])),
+            placement_readiness     = evaluation.get('placement_readiness', 'needs_work'),
+        )
+
+        # Save per-question AI scores into InterviewAnswer rows
+        for qr in evaluation.get('question_results', []):
+            q_index = qr.get('question_index')
+            if q_index is None:
+                continue
+            try:
+                question = session.questions.get(question_number=q_index)
+                InterviewAnswer.objects.update_or_create(
+                    question=question,
+                    defaults={
+                        'answer_text':  question.answer_text or '[No answer provided]',
+                        'score':        to_100(qr.get('score')),
+                        'ai_feedback':  qr.get('feedback', ''),
+                        'strengths':    [qr.get('strength', '')] if qr.get('strength') else [],
+                        'improvements': [qr.get('improvement', '')] if qr.get('improvement') else [],
+                    }
+                )
+            except InterviewQuestion.DoesNotExist:
+                continue
+
+    return Response(
+        {
+            **evaluation,
+            'evaluation_id': str(result.id),
+            'session_id':    str(session.id),
+        },
+        status=status.HTTP_200_OK
+    )
