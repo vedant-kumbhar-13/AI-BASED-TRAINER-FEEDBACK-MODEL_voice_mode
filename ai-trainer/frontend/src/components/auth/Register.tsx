@@ -14,13 +14,28 @@ export const Register = () => {
   const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [nameError, setNameError] = useState('');
   const navigate = useNavigate();
 
+  const NAME_REGEX = /^[a-zA-Z\s'\-]{2,50}$/;
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    if (e.target.name === 'fullName') {
+      const val = e.target.value;
+      if (/^[a-zA-Z\s'\-]*$/.test(val) || val === '') {
+        setFormData({ ...formData, fullName: val });
+        if (val.length > 0 && !NAME_REGEX.test(val)) {
+          setNameError('Name must be 2-50 letters only.');
+        } else {
+          setNameError('');
+        }
+      }
+    } else {
+      setFormData({
+        ...formData,
+        [e.target.name]: e.target.value,
+      });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -148,9 +163,12 @@ export const Register = () => {
                 placeholder="Enter your full name"
                 value={formData.fullName}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg font-body focus:outline-none focus:border-primary focus:border-2 transition-all placeholder-gray-400"
+                className={`w-full px-4 py-3 border ${nameError ? 'border-red-500' : 'border-gray-300'} rounded-lg font-body focus:outline-none focus:border-primary focus:border-2 transition-all placeholder-gray-400`}
                 required
               />
+              {nameError && (
+                <p className="mt-1 text-xs text-red-500">{nameError}</p>
+              )}
             </div>
 
             {/* Email */}

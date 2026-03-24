@@ -68,6 +68,12 @@ def generate_questions(resume):
 
     # Extract candidate name + degree from experience/education if available
     candidate_name = 'the candidate'
+    if hasattr(resume, 'user') and resume.user:
+        first = getattr(resume.user, 'first_name', '')
+        last = getattr(resume.user, 'last_name', '')
+        if first or last:
+            candidate_name = f"{first} {last}".strip()
+
     degree_branch  = 'Engineering'
     cgpa           = ''
 
@@ -108,17 +114,20 @@ Candidate Profile:
 {chr(10).join(project_summaries) or '  Not specified'}
 - Summary: {summary or 'Not provided'}
 
-Generate exactly 8 interview questions following this STRICT distribution:
-Q1 - Type: HR       - A warm opening question (introduce yourself, career goals)
-Q2 - Type: Behavioral - A situation-based question (teamwork, conflict, leadership)
-Q3 - Type: HR       - A closing HR question (strengths/weaknesses, why this company)
-Q4 - Type: Technical - MUST reference a specific skill from their skills list
-Q5 - Type: Technical - MUST reference a specific project they have listed
-Q6 - Type: Technical - A core CS concept relevant to their degree/skills
-Q7 - Type: Technical - A problem-solving or design question tied to their stack
-Q8 - Type: Technical - A depth question probing understanding of a key technology
+Generate exactly 8 interview questions with this STRICT distribution:
+Q1 - Type: HR       - Warm opening (introduce yourself)
+Q2 - Type: Behavioral - Situation-based question (teamwork/conflict)
+Q3 - Type: HR       - Closing question (strengths or why this role)
+Q4 - Type: Technical - Reference a skill from their list
+Q5 - Type: Technical - Reference a project they listed
+Q6 - Type: Technical - Core CS concept
+Q7 - Type: Technical - Problem-solving related to stack
+Q8 - Type: Technical - Deep understanding of key tech
 
-Return ONLY a valid JSON array. No explanation. No markdown. No backticks.
+CRITICAL LIMITS:
+- Keep every question extremely short and direct (max 15-20 words).
+- Avoid lengthy narrative setups.
+- Return ONLY a valid JSON array.
 
 Format:
 [
@@ -130,8 +139,8 @@ Format:
 
     system_instruction = (
         "You are an expert technical interviewer at a top Indian IT company. "
-        "You personalise every question to the candidate's actual resume. "
-        "Return ONLY valid JSON. No preamble. No backticks. No explanation."
+        "You personalise questions to the candidate's actual resume, but keep them extremely concise. "
+        "Return ONLY valid JSON. No preamble. No backticks."
     )
 
     # -----------------------------------------------------------------------
@@ -211,25 +220,27 @@ def evaluate_interview(answers):
         # Prompt
         # -----------------------------------------------------------------------
         user_prompt = f"""
-Below is the complete transcript of an interview with 8 questions and answers.
-Evaluate the candidate holistically — consider ALL answers together.
+Below is the complete transcript of an interview.
+Evaluate the candidate holistically and concisely.
 
 --- TRANSCRIPT START ---
 {transcript}
 --- TRANSCRIPT END ---
 
-Return ONLY a valid JSON object with this exact structure (no extra keys, no backticks):
+CRITICAL LIMITS:
+- Keep textual feedback extremely brief and direct to save tokens.
+- Return ONLY a valid JSON object with exact structure.
 
 {{
   "overall_score": <float 0.0-10.0>,
   "placement_readiness": <"not_ready"|"needs_work"|"almost_ready"|"ready"|"highly_ready">,
-  "summary": "<4-5 sentence holistic assessment>",
-  "top_strength": "<single biggest strength observed>",
-  "top_weakness": "<single most important area to improve>",
+  "summary": "<2-3 sentence brief assessment>",
+  "top_strength": "<single brief strength>",
+  "top_weakness": "<single brief area to improve>",
   "recommendations": [
-    "<actionable recommendation 1>",
-    "<actionable recommendation 2>",
-    "<actionable recommendation 3>"
+    "<short recommendation 1>",
+    "<short recommendation 2>",
+    "<short recommendation 3>"
   ],
   "scores": {{
     "overall": <float 0.0-10.0>,
@@ -243,18 +254,18 @@ Return ONLY a valid JSON object with this exact structure (no extra keys, no bac
     {{
       "question_index": <1-8>,
       "score": <float 0.0-10.0>,
-      "feedback": "<2-3 sentence specific feedback>",
-      "strength": "<one strength for this answer>",
-      "improvement": "<one improvement for this answer>"
+      "feedback": "<1-2 sentence brief feedback>",
+      "strength": "<one brief strength>",
+      "improvement": "<one brief improvement>"
     }}
   ]
 }}
 """
 
         system_instruction = (
-            "You are an unbiased expert HR evaluator with 20 years of campus recruitment experience. "
-            "Evaluate interview answers fairly. Be specific — reference what the candidate actually said. "
-            "Return ONLY valid JSON. Scores are 0.0-10.0. No preamble. No backticks."
+            "You are an unbiased expert HR evaluator. "
+            "Evaluate answers fairly but extremely concisely. "
+            "Return ONLY valid JSON. Scores are 0.0-10.0. No preamble."
         )
 
         # -----------------------------------------------------------------------

@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import AuthService from '../services/authService';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api').replace(/\/api$/, '');
 
 // ── TypeScript shim for Web Speech API ───────────────────────────────────────
 declare const webkitSpeechRecognition: any;

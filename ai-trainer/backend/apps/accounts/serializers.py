@@ -1,3 +1,4 @@
+import re
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from .models import CustomUser
@@ -20,6 +21,14 @@ class RegisterSerializer(serializers.ModelSerializer):
         fields = ('username', 'email', 'first_name', 'last_name', 'password', 'password_confirm')
 
     def validate(self, data):
+        name_fields = ['first_name', 'last_name']
+        for field in name_fields:
+            value = data.get(field, '').strip()
+            if value and not re.match(r"^[a-zA-Z\s'\-]{1,50}$", value):
+                raise serializers.ValidationError({
+                    field: f'{field.replace("_", " ").title()} must contain only letters.'
+                })
+
         if data['password'] != data['password_confirm']:
             raise serializers.ValidationError({
                 "password": "Passwords do not match"

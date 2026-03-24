@@ -1,6 +1,7 @@
 # AGENT IMPLEMENTATION INSTRUCTIONS — Clear & Actionable
 
 ## What Happened
+
 1. **Your Blueprint** → Complete 7-week plan for ALL 5 modules (16 bugs)
 2. **Agent Plan** → 4-sprint plan for INTERVIEW module only (10 bugs)
 3. **Result** → Agent's plan is good but INCOMPLETE
@@ -12,16 +13,19 @@
 ### ❌ What Agent Got WRONG (Fix These First)
 
 **Wrong #1: Do NOT Delete InterviewSession.tsx**
+
 - Your plan: "Delete InterviewSession.tsx completely" ❌
 - Correct: "Rewrite InterviewSession.tsx as a state machine" ✅
 - Impact: Deleting breaks the entire routing; rewriting keeps the file and route intact
 
 **Wrong #2: Narrowed Scope to Interview Only**
+
 - Your plan covers: Interview module only
 - Should cover: All 5 modules (Auth, Aptitude, Learning, Interview, Dashboard)
 - Impact: 6 critical bugs remain unfixed
 
 **Wrong #3: Missed Creating 4 Custom Hooks**
+
 - Your plan: Assumes hooks exist
 - Should do: Create hooks from scratch in Section 8.3 of blueprint
 - Impact: Voice interview won't work without these
@@ -31,9 +35,11 @@
 ## CORRECTED IMPLEMENTATION PLAN: 7 WEEKS
 
 ### **WEEK 1: Auth Module Fixes**
+
 **Your Sprint 0 + These Auth Fixes**
 
 **Tasks:**
+
 1. ✅ Move openai_service.py (your plan)
 2. ✅ Update google-generativeai >=0.8.0 (your plan)
 3. ✅ Fix answer_text AttributeError (your plan)
@@ -64,9 +70,11 @@
 ---
 
 ### **WEEK 2: Aptitude Module Backend**
+
 **This Week Does NOT Exist in Agent Plan — Create from Blueprint**
 
 **Tasks:**
+
 1. **NEW:** BUG-03 — Move quiz from static file to database
    - Create `backend/apps/aptitude/models.py` with:
      - `AptitudeTopic` model
@@ -103,9 +111,11 @@
 ---
 
 ### **WEEK 3: Custom Hooks Creation**
+
 **Agent Plan Mentions Hooks But Doesn't Plan Their Creation — Do Both**
 
 **Tasks:**
+
 1. **NEW:** Create src/hooks/useTTS.ts
    - Fixes BUG-06 (Chrome pause-resume) + BUG-07 (voice load race)
    - Code fully provided in Blueprint Section 8.3.1
@@ -131,21 +141,23 @@
 ---
 
 ### **WEEK 4: Interview Backend Redesign**
+
 **Your Sprint 0 Backend Fixes + Interview-Specific Additions**
 
 **Tasks:**
+
 1. ✅ BUG-M1 — Fix answer_text AttributeError (already in Sprint 0)
 2. ✅ Security fixes (already in Sprint 0)
 3. ✅ Rate limiting, file validation (already in Sprint 0)
 
-**NEW additions:**
-4. **NEW:** Create submit-all endpoint (BUG-04)
-   - File: `backend/apps/interview/views.py`
-   - Function: `submit_all_answers(request)`
-   - Accept: ALL 8 Q&A pairs in single request
-   - Call Gemini ONCE with all answers (not 8 separate calls)
-   - Return: overall_score, placement_readiness, summary, recommendations
-   - Code fully provided in Blueprint Section 8.5
+**NEW additions:** 4. **NEW:** Create submit-all endpoint (BUG-04)
+
+- File: `backend/apps/interview/views.py`
+- Function: `submit_all_answers(request)`
+- Accept: ALL 8 Q&A pairs in single request
+- Call Gemini ONCE with all answers (not 8 separate calls)
+- Return: overall_score, placement_readiness, summary, recommendations
+- Code fully provided in Blueprint Section 8.5
 
 5. **NEW:** Update Gemini prompts
    - File: `backend/apps/interview/services/gemini_service.py`
@@ -165,9 +177,11 @@
 ---
 
 ### **WEEK 5: Interview UI — Complete Redesign**
+
 **Your Sprint 1 + Sprint 2 Combined + Interview-Specific UI**
 
 **Tasks:**
+
 1. ✅ BUG-C1 — Remove dual interview system (your Sprint 1)
 2. ✅ BUG-C5 — Implement browserSupport.js (your Sprint 1)
 3. ✅ BUG-H2 — Safe resume navigation (your Sprint 1)
@@ -176,16 +190,16 @@
 6. ✅ BUG-H3 — Voice load race condition (your Sprint 2)
 7. ✅ BUG-H4 — Recognition reset (your Sprint 2)
 
-**NEW additions:**
-8. **CRITICAL:** Rewrite InterviewSession.tsx (NOT delete)
-   - File: `frontend/src/pages/InterviewSession.tsx` (keep file, rewrite contents)
-   - Implement 11-phase state machine:
-     - BROWSER_CHECK, MIC_PERMISSION, LOADING_QUESTIONS, PRE_BRIEF
-     - SPEAKING, COUNTDOWN, RECORDING, SAVING_ANSWER
-     - REVIEW, SUBMITTING, RESULTS, ERROR
-   - Wire in all 4 hooks from Week 3
-   - Handle session recovery on refresh from localStorage
-   - Code fully provided in Blueprint Section 8.4
+**NEW additions:** 8. **CRITICAL:** Rewrite InterviewSession.tsx (NOT delete)
+
+- File: `frontend/src/pages/InterviewSession.tsx` (keep file, rewrite contents)
+- Implement 11-phase state machine:
+  - BROWSER_CHECK, MIC_PERMISSION, LOADING_QUESTIONS, PRE_BRIEF
+  - SPEAKING, COUNTDOWN, RECORDING, SAVING_ANSWER
+  - REVIEW, SUBMITTING, RESULTS, ERROR
+- Wire in all 4 hooks from Week 3
+- Handle session recovery on refresh from localStorage
+- Code fully provided in Blueprint Section 8.4
 
 9. **NEW:** Create missing interview components:
    - `src/components/interview/BrowserCheck.tsx`
@@ -198,6 +212,7 @@
    - Specifications in Blueprint Section 8.3 and referenced in flow diagram
 
 **Test:** Complete voice interview flow:
+
 - Browser detects Web Speech API ✓
 - Microphone permission request ✓
 - Question reads aloud via TTS ✓
@@ -211,20 +226,22 @@
 ---
 
 ### **WEEK 6: Results Page + PDF Report**
+
 **Your Sprint 3 Polish + Results Page**
 
 **Tasks:**
+
 1. ✅ BUG-C2 — Fix pdfGenerator.js signature (your Sprint 3)
 2. ✅ BUG-M3 — PDF target ID verification (your Sprint 3)
 3. ✅ BUG-L1 — Unify token storage (move to Week 1)
 
-**NEW additions:**
-4. **NEW:** Create PDF Generator
-   - File: `frontend/src/utils/pdfGenerator.ts`
-   - Use: jsPDF + html2canvas
-   - Install: `npm install jspdf html2canvas`
-   - Capture: `#interview-report-pdf` div
-   - Code fully provided in Blueprint (referenced in Week 6)
+**NEW additions:** 4. **NEW:** Create PDF Generator
+
+- File: `frontend/src/utils/pdfGenerator.ts`
+- Use: jsPDF + html2canvas
+- Install: `npm install jspdf html2canvas`
+- Capture: `#interview-report-pdf` div
+- Code fully provided in Blueprint (referenced in Week 6)
 
 5. **NEW:** Create Results Components:
    - `src/components/results/ScoreGauge.tsx` (circular score display)
@@ -243,9 +260,11 @@
 ---
 
 ### **WEEK 7: Dashboard + Full System Integration**
+
 **This Entire Week Does NOT Exist in Agent Plan — Create from Blueprint**
 
 **Tasks:**
+
 1. **NEW:** Connect Dashboard to Real APIs
    - File: `frontend/src/components/dashboard/DashboardHome.tsx`
    - Fetch: `GET /api/interview/stats/` → get total_interviews, average_score, best_score, by_type
@@ -281,6 +300,7 @@
 ## Quick Checklist: What Agent MUST Do
 
 ### ✅ KEEP from Agent Plan
+
 - Sprint 0 backend security fixes
 - Sprint 0 gemini version upgrade
 - Sprint 1 routing improvements
@@ -288,9 +308,11 @@
 - Sprint 3 polish work
 
 ### ❌ REMOVE from Agent Plan
+
 - **Do NOT delete InterviewSession.tsx** — rewrite it instead
 
 ### ➕ ADD to Agent Plan
+
 - **Week 1:** Auth fixes (BUG-01, BUG-02, BUG-11, BUG-12)
 - **Week 2:** Full Aptitude module creation (BUG-03, BUG-14, BUG-15)
 - **Week 3:** Create all 4 custom hooks from scratch
@@ -311,7 +333,7 @@ However, the complete project has 5 modules and 16 bugs.
 Your plan covers only the Interview module (Sprints 0-3).
 You must EXPAND to cover ALL 5 modules across 7 weeks.
 
-I'm providing you a CORRECTED PLAN that integrates your work 
+I'm providing you a CORRECTED PLAN that integrates your work
 with the missing modules.
 
 Follow this plan EXACTLY:
@@ -330,15 +352,15 @@ Test after each week before moving to next week."
 
 ## Files to Reference When Instructing Agent
 
-| Week | Key Files in Blueprint |
-|------|-----|
-| 1 | Section 6 (Auth), Section 10 (Environment) |
-| 2 | Section 7 (Aptitude & Learning) |
-| 3 | Section 8.3 (All 4 hooks) |
-| 4 | Section 8.5 (Backend), Section 8.6 (Gemini prompts) |
-| 5 | Section 8.4 (State machine), Section 8.3 (Components) |
-| 6 | Section 11 Week 6, PDF references |
-| 7 | Section 9 (Dashboard), Section 11 Week 7 |
+| Week | Key Files in Blueprint                                |
+| ---- | ----------------------------------------------------- |
+| 1    | Section 6 (Auth), Section 10 (Environment)            |
+| 2    | Section 7 (Aptitude & Learning)                       |
+| 3    | Section 8.3 (All 4 hooks)                             |
+| 4    | Section 8.5 (Backend), Section 8.6 (Gemini prompts)   |
+| 5    | Section 8.4 (State machine), Section 8.3 (Components) |
+| 6    | Section 11 Week 6, PDF references                     |
+| 7    | Section 9 (Dashboard), Section 11 Week 7              |
 
 ---
 
