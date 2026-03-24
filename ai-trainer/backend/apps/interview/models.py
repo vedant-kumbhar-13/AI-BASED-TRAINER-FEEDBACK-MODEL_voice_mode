@@ -60,6 +60,7 @@ class InterviewSession(models.Model):
         ('in_progress', 'In Progress'),
         ('completed', 'Completed'),
         ('cancelled', 'Cancelled'),
+        ('abandoned', 'Abandoned'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

@@ -24,9 +24,13 @@ class ResumeUploadSerializer(serializers.ModelSerializer):
         if value.size > max_size:
             raise serializers.ValidationError("File size must be less than 10MB")
         
-        # Check file type
+        # Check file type (extension)
         if not value.name.lower().endswith('.pdf'):
             raise serializers.ValidationError("Only PDF files are allowed")
+        
+        # Check MIME type (defense-in-depth against spoofed extensions)
+        if hasattr(value, 'content_type') and value.content_type != 'application/pdf':
+            raise serializers.ValidationError("File must be a valid PDF document")
         
         return value
 

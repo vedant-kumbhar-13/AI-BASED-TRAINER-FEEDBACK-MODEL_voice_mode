@@ -142,7 +142,8 @@ Format:
         system_instruction=system_instruction,
         generation_config=genai.types.GenerationConfig(
             temperature=0.7,
-            max_output_tokens=3000,
+            max_output_tokens=8192,
+            response_mime_type="application/json",
         )
     )
 
@@ -264,7 +265,8 @@ Return ONLY a valid JSON object with this exact structure (no extra keys, no bac
             system_instruction=system_instruction,
             generation_config=genai.types.GenerationConfig(
                 temperature=0.2,
-                max_output_tokens=3000,
+                max_output_tokens=8192,
+                response_mime_type="application/json",
             )
         )
 

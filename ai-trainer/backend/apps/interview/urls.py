@@ -21,8 +21,6 @@ urlpatterns = [
     # Interview Session endpoints
     path('start/', views.start_interview, name='start-interview'),
     path('question/<uuid:session_id>/', views.get_current_question, name='get-question'),
-    path('submit-answer/', views.submit_answer, name='submit-answer'),
-    path('end/<uuid:session_id>/', views.end_interview, name='end-interview'),
     
     # Feedback & History
     path('feedback/<uuid:session_id>/', views.get_interview_feedback, name='get-feedback'),
@@ -31,9 +29,6 @@ urlpatterns = [
     
     # Delete session
     path('<uuid:session_id>/', views.delete_interview, name='delete-interview'),
-    
-    # Audio transcription
-    path('transcribe/', views.transcribe_audio, name='transcribe-audio'),
 
     # Submit all answers at once — single Gemini holistic evaluation (BUG-04 fix)
     path('submit-all/', views.submit_all, name='submit-all'),

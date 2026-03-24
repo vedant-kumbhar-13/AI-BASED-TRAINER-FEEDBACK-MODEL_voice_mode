@@ -6,7 +6,7 @@ API endpoints for the AI Interview Module.
 
 from rest_framework import status, viewsets
 from rest_framework.decorators import api_view, permission_classes, action
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.shortcuts import get_object_or_404
@@ -21,7 +21,7 @@ from .serializers import (
     InterviewQuestionSerializer, AnswerSubmitSerializer, InterviewAnswerSerializer,
     InterviewFeedbackSerializer, SessionWithFeedbackSerializer, InterviewHistorySerializer
 )
-from .services import GeminiService, ResumeParser, FeedbackGenerator, WhisperService
+from .services import GeminiService, ResumeParser, FeedbackGenerator
 from services.openai_service import generate_questions, evaluate_interview
 import json
 
@@ -187,7 +187,7 @@ def start_interview(request):
             user=request.user,
             resume=resume,
             interview_type=interview_type,
-            total_questions=8,
+            total_questions=len(raw_questions),
             status='in_progress',
             start_time=timezone.now(),
             current_question_index=1,
@@ -249,204 +249,12 @@ def get_current_question(request, session_id):
     })
 
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def submit_answer(request):
-    """
-    Submit an answer and get AI feedback.
-    
-    Request body:
-    {
-        "session_id": "uuid",
-        "question_id": "uuid",
-        "answer_text": "User's answer...",
-        "answer_duration_seconds": 90
-    }
-    """
-    serializer = AnswerSubmitSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
-    
-    data = serializer.validated_data
-    
-    session = get_object_or_404(
-        InterviewSession, id=data['session_id'], user=request.user
-    )
-    question = get_object_or_404(
-        InterviewQuestion, id=data['question_id'], session=session
-    )
-    
-    if session.status != 'in_progress':
-        return Response(
-            {'error': 'Interview session is not in progress'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    # Check if already answered
-    if hasattr(question, 'answer') and question.answer:
-        return Response(
-            {'error': 'Question already answered'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    try:
-        # Evaluate answer with Gemini
-        gemini = GeminiService()
-        evaluation = gemini.evaluate_answer(
-            question=question.question_text,
-            answer=data['answer_text'],
-            expected_points=question.expected_points,
-            interview_type=session.interview_type
-        )
-        
-        # Save answer
-        answer = InterviewAnswer.objects.create(
-            question=question,
-            answer_text=data['answer_text'],
-            answer_duration_seconds=data.get('answer_duration_seconds'),
-            score=evaluation['score'],
-            ai_feedback=evaluation['ai_feedback'],
-            strengths=evaluation.get('strengths', []),
-            improvements=evaluation.get('improvements', []),
-            key_points_covered=evaluation.get('key_points_covered', []),
-            key_points_missed=evaluation.get('key_points_missed', []),
-            relevance_score=evaluation.get('relevance_score'),
-            clarity_score=evaluation.get('clarity_score'),
-            depth_score=evaluation.get('depth_score')
-        )
-        
-        response_data = {
-            'answer': InterviewAnswerSerializer(answer).data,
-            'is_last_question': question.question_number >= session.total_questions
-        }
-        
-        # Generate next question if not last
-        if question.question_number < session.total_questions:
-            # Get previous questions for context
-            previous_questions = list(
-                session.questions.values_list('question_text', flat=True)
-            )
-            
-            # Generate next question
-            resume_context = question.context_used
-            next_question_data = gemini.generate_interview_question(
-                interview_type=session.interview_type,
-                question_number=question.question_number + 1,
-                total_questions=session.total_questions,
-                resume_context=resume_context,
-                previous_questions=previous_questions
-            )
-            
-            next_question = InterviewQuestion.objects.create(
-                session=session,
-                question_text=next_question_data['question_text'],
-                question_number=question.question_number + 1,
-                category=next_question_data.get('category', 'general'),
-                difficulty=next_question_data.get('difficulty', 3),
-                context_used=resume_context,
-                expected_points=next_question_data.get('expected_points', []),
-                suggested_time_seconds=next_question_data.get('suggested_time_seconds', 120)
-            )
-            
-            session.current_question_index = question.question_number + 1
-            session.save()
-            
-            response_data['next_question'] = InterviewQuestionSerializer(next_question).data
-        
-        return Response(response_data)
-        
-    except Exception as e:
-        logger.error(f"Error submitting answer: {str(e)}")
-        return Response(
-            {'error': f"Failed to evaluate answer: {str(e)}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+# NOTE: submit_answer endpoint has been removed.
+# All answers are now submitted together via submit_all() below.
 
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def end_interview(request, session_id):
-    """End an interview session and generate final feedback."""
-    session = get_object_or_404(
-        InterviewSession, id=session_id, user=request.user
-    )
-    
-    if session.status == 'completed':
-        return Response(
-            {'error': 'Interview already completed'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    try:
-        with transaction.atomic():
-            # Update session status
-            session.status = 'completed'
-            session.end_time = timezone.now()
-            
-            # Get all questions and answers
-            questions_answers = []
-            for question in session.questions.all().order_by('question_number'):
-                qa = {
-                    'question': question.question_text,
-                    'category': question.category,
-                    'score': 0
-                }
-                if hasattr(question, 'answer') and question.answer:
-                    qa['answer'] = question.answer.answer_text
-                    qa['score'] = question.answer.score
-                    qa['answer_data'] = {
-                        'relevance_score': question.answer.relevance_score,
-                        'clarity_score': question.answer.clarity_score,
-                        'depth_score': question.answer.depth_score,
-                        'strengths': question.answer.strengths,
-                        'improvements': question.answer.improvements
-                    }
-                questions_answers.append(qa)
-            
-            # Calculate scores using FeedbackGenerator
-            feedback_gen = FeedbackGenerator()
-            scores = feedback_gen.calculate_overall_score(
-                [qa.get('answer_data', {}) for qa in questions_answers],
-                session.interview_type
-            )
-            
-            session.overall_score = scores['overall_score']
-            session.communication_score = scores['communication_score']
-            session.technical_score = scores['technical_score']
-            session.confidence_score = scores['confidence_score']
-            session.save()
-            
-            # Generate AI feedback
-            gemini = GeminiService()
-            session_data = {
-                'interview_type': session.interview_type,
-                'total_questions': session.total_questions
-            }
-            ai_feedback = gemini.generate_session_feedback(session_data, questions_answers)
-            
-            # Create feedback record
-            feedback = InterviewFeedback.objects.create(
-                session=session,
-                overall_summary=ai_feedback.get('overall_summary', ''),
-                overall_rating=ai_feedback.get('overall_rating', 'average'),
-                strengths=ai_feedback.get('strengths', []),
-                weaknesses=ai_feedback.get('weaknesses', []),
-                suggestions=ai_feedback.get('suggestions', []),
-                topic_scores=ai_feedback.get('topic_scores', {}),
-                recommended_resources=ai_feedback.get('recommended_resources', []),
-                practice_areas=ai_feedback.get('practice_areas', [])
-            )
-            
-            return Response({
-                'session': InterviewSessionSerializer(session).data,
-                'feedback': InterviewFeedbackSerializer(feedback).data
-            })
-            
-    except Exception as e:
-        logger.error(f"Error ending interview: {str(e)}")
-        return Response(
-            {'error': f"Failed to generate feedback: {str(e)}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+# NOTE: end_interview endpoint has been removed.
+# Final evaluation is now handled by submit_all() below.
 
 
 @api_view(['GET'])
@@ -484,8 +292,14 @@ def interview_history(request):
         sessions = sessions.filter(status=status_filter)
     
     # Pagination
-    page = int(request.query_params.get('page', 1))
-    page_size = int(request.query_params.get('page_size', 10))
+    try:
+        page = max(1, int(request.query_params.get('page', 1)))
+    except (TypeError, ValueError):
+        page = 1
+    try:
+        page_size = min(100, max(1, int(request.query_params.get('page_size', 10))))
+    except (TypeError, ValueError):
+        page_size = 10
     start = (page - 1) * page_size
     end = start + page_size
     
@@ -565,33 +379,8 @@ def interview_stats(request):
     })
 
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def transcribe_audio(request):
-    """
-    Transcribe audio file to text using Whisper.
-    
-    Request: multipart/form-data with 'audio' file
-    Returns: { success: bool, text: string, error?: string }
-    """
-    audio_file = request.FILES.get('audio')
-    
-    if not audio_file:
-        return Response(
-            {'success': False, 'error': 'No audio file provided', 'text': ''},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    try:
-        whisper = WhisperService()
-        result = whisper.transcribe_audio(audio_file)
-        return Response(result)
-    except Exception as e:
-        logger.error(f"Transcription error: {str(e)}")
-        return Response(
-            {'success': False, 'error': str(e), 'text': ''},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+# NOTE: transcribe_audio endpoint has been removed.
+# Voice input now uses the browser's built-in Web Speech API.
 
 
 # ===========================================
@@ -714,10 +503,19 @@ def submit_all(request):
                 continue
             try:
                 question = session.questions.get(question_number=q_index)
+                # Find matching answer from the submitted payload
+                matching_answer = next(
+                    (a for i, a in enumerate(answers, 1) if i == q_index),
+                    None
+                )
+                answer_text = (
+                    matching_answer.get('answerText', matching_answer.get('answer_text', ''))
+                    if matching_answer else '[No answer provided]'
+                )
                 InterviewAnswer.objects.update_or_create(
                     question=question,
                     defaults={
-                        'answer_text':  question.answer_text or '[No answer provided]',
+                        'answer_text':  answer_text or '[No answer provided]',
                         'score':        to_100(qr.get('score')),
                         'ai_feedback':  qr.get('feedback', ''),
                         'strengths':    [qr.get('strength', '')] if qr.get('strength') else [],

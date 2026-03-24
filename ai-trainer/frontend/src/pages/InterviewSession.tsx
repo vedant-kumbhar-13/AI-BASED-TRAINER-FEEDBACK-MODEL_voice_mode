@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import AuthService from '../services/authService';
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
 // ── TypeScript shim for Web Speech API ───────────────────────────────────────
 declare const webkitSpeechRecognition: any;
 declare const SpeechRecognition: any;
@@ -223,7 +225,7 @@ export const InterviewSessionPage = () => {
     setPhase('loading');
     setError('');
     try {
-      const data = await apiPost('http://localhost:8000/api/interview/start/', {
+      const data = await apiPost(`${API_BASE}/api/interview/start/`, {
         resume_id:       resume?.id ?? null,
         interview_type:  config.interviewType,
         total_questions: 8,
@@ -292,7 +294,7 @@ export const InterviewSessionPage = () => {
   const handleSubmitAll = async () => {
     setPhase('submitting');
     try {
-      const evaluation = await apiPost('http://localhost:8000/api/interview/submit-all/', {
+      const evaluation = await apiPost(`${API_BASE}/api/interview/submit-all/`, {
         session_id: sessionId,
         answers:    collectedAnswers,
       });

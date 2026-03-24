@@ -35,18 +35,19 @@ export const InterviewFeedback = () => {
   const [expandedQuestion, setExpandedQuestion] = useState<number | null>(0);
 
   // ── Extract scores ── prefer new evaluation, fall back to session
+  // NOTE: Backend submit_all already scales 0–10 → 0–100 via to_100()
   const scores = evaluation?.scores || {};
   const overallScore       = evaluation
-    ? (evaluation.overall_score ?? 0) * 10          // Gemini returns 0-10, display as 0-100
+    ? (evaluation.overall_score ?? 0)
     : session?.overall_score;
   const communicationScore = evaluation
-    ? (scores.communication ?? 0) * 10
+    ? (scores.communication ?? 0)
     : session?.communication_score;
   const technicalScore = evaluation
-    ? (scores.technical ?? 0) * 10
+    ? (scores.technical ?? 0)
     : session?.technical_score;
   const confidenceScore = evaluation
-    ? (scores.confidence ?? 0) * 10
+    ? (scores.confidence ?? 0)
     : session?.confidence_score;
 
   // ── Strengths / improvements ──
@@ -214,7 +215,7 @@ export const InterviewFeedback = () => {
             {questionResults.length > 0 ? (
               /* New flow: per-question results from submit-all */
               questionResults.map((qr: any, index: number) => {
-                const scoreVal = Math.round((qr.score ?? 0) * 10);
+                const scoreVal = Math.round(qr.score ?? 0);
                 return (
                   <div key={index} className="border-b border-gray-100 last:border-0">
                     <button
