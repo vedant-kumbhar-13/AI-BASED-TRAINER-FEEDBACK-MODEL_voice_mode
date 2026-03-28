@@ -332,30 +332,6 @@ class InterviewAPI {
     }
   }
 
-  /**
-   * Transcribe audio using Whisper API
-   */
-  static async transcribeAudio(audioBlob: Blob): Promise<{ success: boolean; text?: string; error?: string }> {
-    try {
-      const formData = new FormData();
-      formData.append('audio', audioBlob, 'recording.webm');
-
-      const response = await fetch(`${API_BASE_URL}/transcribe/`, {
-        method: 'POST',
-        headers: AuthService.getAuthHeaders(),
-        body: formData
-      });
-
-      const result = await response.json();
-      
-      if (response.ok && result.success) {
-        return { success: true, text: result.text };
-      }
-      return { success: false, error: result.error || 'Transcription failed' };
-    } catch (error) {
-      return { success: false, error: 'Network error' };
-    }
-  }
 }
 
 export default InterviewAPI;

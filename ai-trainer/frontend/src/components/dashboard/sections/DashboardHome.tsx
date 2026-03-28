@@ -11,7 +11,6 @@ import {
   ReferenceLine,
 } from 'recharts';
 import InterviewAPI from '../../../services/interviewAPI';
-import type { InterviewSession } from '../../../services/interviewAPI';
 import AuthService from '../../../services/authService';
 
 // Types for interview data
@@ -51,11 +50,9 @@ const getAptitudeProgress = () => {
 };
 
 export const DashboardHome = () => {
-  const [loading, setLoading] = useState(true);
   const [username, setUsername] = useState<string>('User');
   const [stats, setStats] = useState<InterviewStats | null>(null);
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
-  const [latestInterview, setLatestInterview] = useState<InterviewSession | null>(null);
 
   useEffect(() => {
     // Get username from AuthService
@@ -82,35 +79,29 @@ export const DashboardHome = () => {
           const transformedData: ChartDataPoint[] = historyResult.results
             .filter((item: any) => item.overall_score !== null)
             .reverse() // Oldest first for chart
-            .map((item: any) => ({
-              date: new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-              score: Math.round(item.overall_score || 0),
-              type: item.interview_type
-            }));
+            .map((item: any) => {
+              const d = new Date(item.created_at);
+              return {
+                date: `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`,
+                score: Math.round(item.overall_score || 0),
+                type: item.interview_type
+              };
+            });
           setChartData(transformedData);
-
-          // Set latest interview (first in original order)
-          if (historyResult.results.length > 0) {
-            setLatestInterview(historyResult.results[0]);
-          }
         }
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
-      } finally {
-        setLoading(false);
       }
     };
 
     fetchData();
   }, []);
 
-  // Calculate chart metrics
+  // Calculate chart metrics referencing global stats
   const hasInterviewData = chartData.length > 0;
-  const highestScore = hasInterviewData ? Math.max(...chartData.map((d) => d.score)) : 0;
+  const highestScore = stats?.best_score ? Math.round(stats.best_score) : (hasInterviewData ? Math.max(...chartData.map((d) => d.score)) : 0);
   const lowestScore = hasInterviewData ? Math.min(...chartData.map((d) => d.score)) : 0;
-  const averageScore = hasInterviewData
-    ? Math.round(chartData.reduce((acc, d) => acc + d.score, 0) / chartData.length)
-    : 0;
+  const averageScore = stats?.average_score ? Math.round(stats.average_score) : 0;
 
   return (
     <div className="space-y-8">
@@ -121,7 +112,7 @@ export const DashboardHome = () => {
       </div>
 
       {/* Section 2: Stat Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard 
           icon={<ClockIcon />} 
           value={stats?.total_interviews?.toString() || 'NA'} 
@@ -133,14 +124,6 @@ export const DashboardHome = () => {
           value={stats?.best_score ? `${Math.round(stats.best_score)}%` : 'NA'} 
           label="Best Score" 
           color="text-success" 
-        />
-        <StatCard 
-          icon={<FileIcon />} 
-          value={stats?.improvement !== undefined && stats?.improvement !== 0 
-            ? `${stats.improvement > 0 ? '+' : ''}${Math.round(stats.improvement)}%` 
-            : 'NA'} 
-          label="Improvement" 
-          color="text-info" 
         />
         <StatCard 
           icon={<BookIcon />} 
@@ -157,9 +140,9 @@ export const DashboardHome = () => {
           <p className="text-xs text-gray-400">Track your improvement over time</p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Chart Card (2/3 width) */}
-          <div className="lg:col-span-2 bg-white border border-gray-200 rounded-lg p-6 shadow-card">
+        <div className="grid grid-cols-1 gap-6">
+          {/* Chart Card (Full width) */}
+          <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-card">
             <div className="mb-4 pb-4 border-b border-gray-200">
               <h3 className="text-lg font-bold text-gray-800 mb-1">Your Interview Score Trend</h3>
               <p className="text-xs text-gray-400">
@@ -230,113 +213,6 @@ export const DashboardHome = () => {
                 <p className="text-xs text-gray-400">Current Avg</p>
                 <p className="text-sm font-bold text-gray-800">{hasInterviewData ? averageScore : 'NA'}</p>
               </div>
-            </div>
-          </div>
-
-          {/* Stats Cards Column (1/3 width) */}
-          <div className="space-y-4">
-            {/* Overall Score Card */}
-            <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-card text-center">
-              <p className="text-sm font-bold text-gray-400 mb-3">Overall Interview Score</p>
-              <div className="flex items-baseline justify-center mb-3">
-                <span className="text-5xl font-bold text-primary">
-                  {stats?.average_score ? Math.round(stats.average_score) : 'NA'}
-                </span>
-                {stats?.average_score && <span className="text-xl text-gray-400 ml-1">/100</span>}
-              </div>
-              <p className="text-sm font-bold text-gray-800 mb-3">
-                {stats?.average_score 
-                  ? (stats.average_score >= 80 ? 'Excellent Performance' : 
-                     stats.average_score >= 60 ? 'Good Performance' : 
-                     stats.average_score >= 40 ? 'Fair Performance' : 'Needs Improvement')
-                  : 'No data yet'}
-              </p>
-              <div className="w-full h-2 bg-gray-200 rounded-full">
-                <div
-                  className="h-2 bg-primary rounded-full transition-all"
-                  style={{ width: `${stats?.average_score || 0}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Interview Stats Grid */}
-            <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-card">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-3 hover:bg-gray-50 rounded-lg text-center">
-                  <span className="text-2xl">📊</span>
-                  <p className="text-xs text-gray-400">Total Interviews</p>
-                  <p className="text-xl font-bold text-gray-800">{stats?.total_interviews ?? 'NA'}</p>
-                </div>
-                <div className="p-3 hover:bg-gray-50 rounded-lg text-center border-l border-gray-200">
-                  <span className="text-2xl">📈</span>
-                  <p className="text-xs text-gray-400">Improvement</p>
-                  <p className="text-xl font-bold text-success">
-                    {stats?.improvement !== undefined && stats?.improvement !== 0 
-                      ? `${stats.improvement > 0 ? '+' : ''}${Math.round(stats.improvement)}%`
-                      : 'NA'}
-                  </p>
-                </div>
-                <div className="p-3 hover:bg-primary-light rounded-lg text-center border-t border-gray-200">
-                  <span className="text-2xl">🏆</span>
-                  <p className="text-xs text-gray-400">Best Score</p>
-                  <p className="text-xl font-bold text-gray-800">{stats?.best_score ? Math.round(stats.best_score) : 'NA'}</p>
-                </div>
-                <div className="p-3 hover:bg-gray-50 rounded-lg text-center border-l border-t border-gray-200">
-                  <span className="text-2xl">✅</span>
-                  <p className="text-xs text-gray-400">Pass Rate</p>
-                  <p className="text-xl font-bold text-gray-800">
-                    {stats?.total_interviews && stats.total_interviews > 0 ? '100%' : 'NA'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Latest Interview Summary */}
-            <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-card">
-              <div className="flex justify-between items-center mb-3">
-                <h4 className="text-sm font-bold text-gray-800">Most Recent Interview</h4>
-                <span className="text-xs text-gray-400">
-                  {latestInterview?.created_at 
-                    ? new Date(latestInterview.created_at).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
-                    : 'NA'}
-                </span>
-              </div>
-              
-              {latestInterview ? (
-                <>
-                  <span className="inline-block px-3 py-1 bg-info text-white text-xs font-bold rounded-full mb-3">
-                    {latestInterview.interview_type} Interview
-                  </span>
-                  
-                  <div className="mb-3">
-                    <div className="flex justify-between text-xs mb-2">
-                      <span className="text-gray-400">Score</span>
-                      <span className="font-bold text-gray-800">
-                        {latestInterview.overall_score != null ? `${Math.round(latestInterview.overall_score)}/100` : 'NA'}
-                      </span>
-                    </div>
-                    <div className="w-full h-2 bg-gray-200 rounded-full">
-                      <div 
-                        className="h-2 bg-primary rounded-full" 
-                        style={{ width: `${latestInterview.overall_score ?? 0}%` }} 
-                      />
-                    </div>
-                  </div>
-                  
-                  <Link
-                    to={`/ai-interview-feedback?sessionId=${latestInterview.id}`}
-                    className="block w-full py-2 border-2 border-primary rounded-lg text-center text-xs font-bold text-primary hover:bg-primary-light transition"
-                  >
-                    View detailed feedback →
-                  </Link>
-                </>
-              ) : (
-                <div className="text-center py-4">
-                  <span className="text-3xl mb-2 block">🎯</span>
-                  <p className="text-sm text-gray-500">No interviews yet</p>
-                  <p className="text-xs text-gray-400 mt-1">Start your first interview to see results</p>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -540,11 +416,6 @@ const BookIcon = () => (
   </svg>
 );
 
-const FileIcon = () => (
-  <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-  </svg>
-);
 
 const TrophyIcon = () => (
   <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -130,7 +130,7 @@ class InterviewSession(models.Model):
 
     @property
     def questions_answered(self):
-        return self.questions.filter(answers__isnull=False).count()
+        return self.questions.filter(answer__isnull=False).count()
 
 
 class InterviewQuestion(models.Model):

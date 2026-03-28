@@ -10,8 +10,7 @@ export const InterviewHistory = () => {
   const [interviews, setInterviews] = useState<InterviewSession[]>([]);
   const [stats, setStats] = useState({
     totalInterviews: 0,
-    averageScore: 0,
-    totalPracticeTime: 0
+    averageScore: 0
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -23,7 +22,7 @@ export const InterviewHistory = () => {
 
   const loadHistory = async () => {
     try {
-      const result = await InterviewAPI.getHistory({ page_size: 20 });
+      const result = await InterviewAPI.getHistory({ status: 'completed', page_size: 20 });
       if (result.success && result.results) {
         setInterviews(result.results);
       }
@@ -40,8 +39,7 @@ export const InterviewHistory = () => {
       if (result.success && result.stats) {
         setStats({
           totalInterviews: result.stats.total_interviews || 0,
-          averageScore: result.stats.average_score || 0,
-          totalPracticeTime: 0 // Will calculate from interviews
+          averageScore: result.stats.average_score || 0
         });
       }
     } catch (err) {
@@ -55,8 +53,16 @@ export const InterviewHistory = () => {
 
   const handleDelete = async (sessionId: string) => {
     if (confirm('Are you sure you want to delete this interview?')) {
-      await InterviewAPI.deleteSession(sessionId);
-      setInterviews(prev => prev.filter(i => i.id !== sessionId));
+      try {
+        const result = await InterviewAPI.deleteSession(sessionId);
+        if (result.success) {
+          setInterviews(prev => prev.filter(i => i.id !== sessionId));
+        } else {
+          setError(result.error || 'Failed to delete interview');
+        }
+      } catch {
+        setError('Failed to delete interview. Please try again.');
+      }
     }
   };
 
@@ -105,7 +111,7 @@ export const InterviewHistory = () => {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
               <span className="text-4xl mb-3 block">📊</span>
               <p className="text-3xl font-bold text-gray-800">
@@ -119,11 +125,6 @@ export const InterviewHistory = () => {
                 {stats.totalInterviews > 0 ? stats.totalInterviews : 'NA'}
               </p>
               <p className="text-sm text-gray-500">Completed Interviews</p>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
-              <span className="text-4xl mb-3 block">⏱️</span>
-              <p className="text-3xl font-bold text-gray-800">NA</p>
-              <p className="text-sm text-gray-500">Total Practice Time</p>
             </div>
           </div>
 

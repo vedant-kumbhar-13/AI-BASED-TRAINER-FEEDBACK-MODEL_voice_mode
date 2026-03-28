@@ -53,7 +53,12 @@ async function apiPost(url: string, body: object) {
     headers: getAuthHeaders(),
     body: JSON.stringify(body),
   });
-  const json = await res.json();
+  let json: any;
+  try {
+    json = await res.json();
+  } catch {
+    throw new Error(`Server error (HTTP ${res.status}). Please try again.`);
+  }
   if (!res.ok) throw new Error(json.error || json.detail || `HTTP ${res.status}`);
   return json;
 }
@@ -112,38 +117,7 @@ export const InterviewSessionPage = () => {
     };
   }, []);
 
-  // ── Auto-read question when it changes ───────────────────────────────────
-  useEffect(() => {
-    if (phase === 'answering' && ttsEnabled && currentQuestion) {
-      speakText(`Question ${currentIdx + 1}. ${currentQuestion.text}`);
-    }
-  }, [currentIdx, phase]);
-
-  // ── TTS ──────────────────────────────────────────────────────────────────
-  const speakText = (text: string) => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utterance   = new SpeechSynthesisUtterance(text);
-    utterance.rate    = 0.9;
-    const voices      = window.speechSynthesis.getVoices();
-    const eng = voices.find(v => v.lang.startsWith('en') && v.name.includes('Google'))
-             || voices.find(v => v.lang.startsWith('en'));
-    if (eng) utterance.voice = eng;
-    utterance.onstart  = () => setIsSpeaking(true);
-    utterance.onend    = () => setIsSpeaking(false);
-    utterance.onerror  = () => setIsSpeaking(false);
-    window.speechSynthesis.speak(utterance);
-  };
-
-  const stopSpeaking = () => {
-    window.speechSynthesis?.cancel();
-    setIsSpeaking(false);
-  };
-
-  const toggleTts = () => {
-    if (isSpeaking) stopSpeaking();
-    setTtsEnabled(prev => !prev);
-  };
+  const intentionalStopRef = useRef(false);
 
   // ── Web Speech API (STT) ──────────────────────────────────────────────────
   const startListening = useCallback(() => {
@@ -153,7 +127,9 @@ export const InterviewSessionPage = () => {
     }
 
     // Stop any existing recognition session
+    intentionalStopRef.current = true;
     recognitionRef.current?.stop();
+    intentionalStopRef.current = false;
 
     const SpeechRecognitionClass =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -161,7 +137,7 @@ export const InterviewSessionPage = () => {
     const recognition = new SpeechRecognitionClass();
     recognition.continuous      = true;   // keep running until stopped
     recognition.interimResults  = true;   // show partial results in real time
-    recognition.lang            = 'en-US';
+    recognition.lang            = 'en-IN'; // Indian English accent
     recognition.maxAlternatives = 1;
 
     recognition.onstart = () => {
@@ -194,16 +170,25 @@ export const InterviewSessionPage = () => {
     recognition.onerror = (event: any) => {
       if (event.error === 'not-allowed') {
         setError('Microphone permission denied. Please allow mic access in your browser settings.');
+        intentionalStopRef.current = true;
       } else if (event.error !== 'no-speech') {
-        setError(`Voice error: ${event.error}. Please type your answer instead.`);
+        console.error("Voice Error", event);
+        // Do not interrupt the user with aggressive errors unless absolutely breaking
       }
-      setIsListening(false);
-      setInterimText('');
     };
 
     recognition.onend = () => {
-      setIsListening(false);
-      setInterimText('');
+      if (!intentionalStopRef.current) {
+        try {
+          // Keep recording automatically if not intentionally stopped
+          recognition.start();
+        } catch (e) {
+             // Ignore
+        }
+      } else {
+        setIsListening(false);
+        setInterimText('');
+      }
     };
 
     recognitionRef.current = recognition;
@@ -211,10 +196,55 @@ export const InterviewSessionPage = () => {
   }, []);
 
   const stopListening = useCallback(() => {
+    intentionalStopRef.current = true;
     recognitionRef.current?.stop();
     setIsListening(false);
     setInterimText('');
   }, []);
+
+  // ── Auto-read question when it changes ───────────────────────────────────
+  useEffect(() => {
+    if (phase === 'answering' && ttsEnabled && currentQuestion) {
+      speakText(`Question ${currentIdx + 1}. ${currentQuestion.text}`);
+    }
+  }, [currentIdx, phase]);
+
+  // ── TTS ──────────────────────────────────────────────────────────────────
+  const speakText = (text: string) => {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    stopListening(); // Don't record the AI's own voice
+    
+    const utterance   = new SpeechSynthesisUtterance(text);
+    utterance.rate    = 0.9;
+    const voices      = window.speechSynthesis.getVoices();
+    const bestVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Google')) ||
+                      voices.find(v => v.lang === 'en-IN') ||
+                      voices.find(v => v.lang.startsWith('en')) || voices[0];
+                      
+    if (bestVoice) utterance.voice = bestVoice;
+    
+    utterance.onstart  = () => setIsListening(false);
+    utterance.onend    = () => {
+      setIsSpeaking(false);
+      // Automatically start candidate's recording once question finished
+      startListening();
+    };
+    utterance.onerror  = () => setIsSpeaking(false);
+    
+    setIsSpeaking(true);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const stopSpeaking = () => {
+    window.speechSynthesis?.cancel();
+    setIsSpeaking(false);
+  };
+
+  const toggleTts = () => {
+    if (isSpeaking) stopSpeaking();
+    setTtsEnabled(prev => !prev);
+  };
 
   const toggleListening = () => {
     if (isListening) stopListening(); else startListening();
@@ -228,7 +258,7 @@ export const InterviewSessionPage = () => {
       const data = await apiPost(`${API_BASE}/api/interview/start/`, {
         resume_id:       resume?.id ?? null,
         interview_type:  config.interviewType,
-        total_questions: 8,
+        total_questions: config.numQuestions || 8,
       });
       setSessionId(data.session_id);
       setQuestions(data.questions);
@@ -327,7 +357,7 @@ export const InterviewSessionPage = () => {
           <div className="text-center">
             <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
             <h2 className="text-xl font-bold text-gray-800 mb-2">Generating Your Questions…</h2>
-            <p className="text-gray-500">AI is personalising 8 questions from your profile</p>
+            <p className="text-gray-500">AI is personalising {config.numQuestions || 8} questions from your profile</p>
           </div>
         </main>
       </div>

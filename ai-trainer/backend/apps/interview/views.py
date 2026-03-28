@@ -28,6 +28,22 @@ import json
 logger = logging.getLogger(__name__)
 
 
+def normalize_score(val):
+    """Normalize an AI score to 0-100 range.
+    Gemini may return 0.0-10.0 or 0-100 unpredictably.
+    """
+    try:
+        v = float(val or 0)
+        if v > 100:
+            return 100.0
+        elif v > 10:
+            return round(v, 1)  # Already 0-100
+        else:
+            return round(v * 10, 1)  # Scale 0-10 → 0-100
+    except (TypeError, ValueError):
+        return 0.0
+
+
 # ===========================================
 # Resume Views
 # ===========================================
@@ -83,11 +99,11 @@ class ResumeViewSet(viewsets.ModelViewSet):
             
         except Exception as e:
             logger.error(f"Resume parsing error: {str(e)}")
-            # Return resume even if parsing fails
+            # Return resume even if parsing fails — do NOT leak internal error
             return Response(
                 {
                     **ResumeDetailSerializer(resume).data,
-                    'parsing_error': str(e)
+                    'parsing_error': 'Resume could not be fully parsed. You can still use it for interviews.'
                 },
                 status=status.HTTP_201_CREATED
             )
@@ -170,14 +186,15 @@ def start_interview(request):
             )
 
     interview_type = request.data.get('interview_type', 'Technical')
+    total_questions = int(request.data.get('total_questions', 8))
 
-    # 503 — generate all 8 questions in ONE Gemini call
+    # Generate questions using Gemini — respect user's chosen count
     try:
-        raw_questions = generate_questions(resume)
+        raw_questions = generate_questions(resume, num_questions=total_questions)
     except Exception as e:
         logger.error(f"Question generation failed: {e}")
         return Response(
-            {'error': f'Question generation failed: {str(e)}'},
+            {'error': 'Question generation failed. Please try again later.'},
             status=status.HTTP_503_SERVICE_UNAVAILABLE
         )
 
@@ -346,10 +363,9 @@ def interview_stats(request):
             'by_type': {}
         })
     
-    scores = list(sessions.values_list('overall_score', flat=True))
-    scores = [s for s in scores if s is not None]
+    scores = [s if s is not None else 0.0 for s in sessions.values_list('overall_score', flat=True)]
     
-    avg_score = sum(scores) / len(scores) if scores else 0
+    avg_score = sum(scores) / total_interviews if total_interviews > 0 else 0
     best_score = max(scores) if scores else 0
     
     # Calculate improvement (last 5 vs first 5)
@@ -364,10 +380,11 @@ def interview_stats(request):
     by_type = {}
     for interview_type in ['HR', 'Technical', 'Behavioral', 'Mixed']:
         type_sessions = sessions.filter(interview_type=interview_type)
-        type_scores = [s for s in type_sessions.values_list('overall_score', flat=True) if s]
+        type_count = type_sessions.count()
+        type_scores = [s if s is not None else 0.0 for s in type_sessions.values_list('overall_score', flat=True)]
         by_type[interview_type] = {
-            'count': type_sessions.count(),
-            'average_score': sum(type_scores)/len(type_scores) if type_scores else 0
+            'count': type_count,
+            'average_score': sum(type_scores) / type_count if type_count > 0 else 0
         }
     
     return Response({
@@ -455,7 +472,7 @@ def submit_all(request):
     except ValueError as e:
         logger.error(f"Evaluation failed for session {session_id}: {e}")
         return Response(
-            {'error': f'Evaluation failed: {str(e)}'},
+            {'error': 'Interview evaluation failed. Please try again.'},
             status=status.HTTP_503_SERVICE_UNAVAILABLE
         )
 
@@ -463,32 +480,39 @@ def submit_all(request):
     with transaction.atomic():
         scores = evaluation.get('scores', {})
 
-        # Gemini returns 0.0-10.0 — multiply × 10 to store as 0-100 (BUG-16 fix)
-        def to_100(val):
-            try:
-                return float(val or 0) * 10
-            except (TypeError, ValueError):
-                return 0.0
+        # Extract and normalize individual metric scores using module-level utility
+        hr_score     = normalize_score(scores.get('hr'))
+        tech_score   = normalize_score(scores.get('technical'))
+        comm_score   = normalize_score(scores.get('communication'))
+        conf_score   = normalize_score(scores.get('confidence'))
+        struct_score = normalize_score(scores.get('structure'))
+
+        # Calculate overall score as the mean of valid sub-metrics
+        metrics = [hr_score, tech_score, comm_score, conf_score, struct_score]
+        valid_metrics = [m for m in metrics if m > 0]
+        calculated_overall = round(
+            sum(valid_metrics) / len(valid_metrics), 1
+        ) if valid_metrics else normalize_score(evaluation.get('overall_score'))
 
         # Update session scores and mark completed
         session.status              = 'completed'
         session.end_time            = timezone.now()
-        session.overall_score       = to_100(evaluation.get('overall_score'))
-        session.communication_score = to_100(scores.get('communication'))
-        session.technical_score     = to_100(scores.get('technical'))
-        session.confidence_score    = to_100(scores.get('confidence'))
-        session.hr_avg_score        = to_100(scores.get('hr'))
+        session.overall_score       = calculated_overall
+        session.communication_score = comm_score
+        session.technical_score     = tech_score
+        session.confidence_score    = conf_score
+        session.hr_avg_score        = hr_score
         session.save()
 
-        # Create EvaluationResult record
+        # Create EvaluationResult — reuse pre-normalized variables (no double scaling)
         result = EvaluationResult.objects.create(
             session                 = session,
-            overall_score           = to_100(evaluation.get('overall_score')),
-            hr_score                = to_100(scores.get('hr')),
-            technical_score         = to_100(scores.get('technical')),
-            communication_score     = to_100(scores.get('communication')),
-            confidence_score        = to_100(scores.get('confidence')),
-            structure_score         = to_100(scores.get('structure')),
+            overall_score           = calculated_overall,
+            hr_score                = hr_score,
+            technical_score         = tech_score,
+            communication_score     = comm_score,
+            confidence_score        = conf_score,
+            structure_score         = struct_score,
             summary_feedback        = evaluation.get('summary', ''),
             top_strength            = evaluation.get('top_strength', ''),
             top_weakness            = evaluation.get('top_weakness', ''),
@@ -516,7 +540,7 @@ def submit_all(request):
                     question=question,
                     defaults={
                         'answer_text':  answer_text or '[No answer provided]',
-                        'score':        to_100(qr.get('score')),
+                        'score':        normalize_score(qr.get('score')),
                         'ai_feedback':  qr.get('feedback', ''),
                         'strengths':    [qr.get('strength', '')] if qr.get('strength') else [],
                         'improvements': [qr.get('improvement', '')] if qr.get('improvement') else [],
@@ -525,11 +549,32 @@ def submit_all(request):
             except InterviewQuestion.DoesNotExist:
                 continue
 
+    # Build a normalized response dict (all scores 0-100) for the frontend
+    normalized_question_results = []
+    for qr in evaluation.get('question_results', []):
+        normalized_question_results.append({
+            **qr,
+            'score': normalize_score(qr.get('score')),
+        })
+
     return Response(
         {
-            **evaluation,
-            'evaluation_id': str(result.id),
-            'session_id':    str(session.id),
+            'evaluation_id':       str(result.id),
+            'session_id':          str(session.id),
+            'overall_score':       calculated_overall,
+            'placement_readiness': evaluation.get('placement_readiness', 'needs_work'),
+            'summary':             evaluation.get('summary', ''),
+            'top_strength':        evaluation.get('top_strength', ''),
+            'top_weakness':        evaluation.get('top_weakness', ''),
+            'recommendations':     evaluation.get('recommendations', []),
+            'scores': {
+                'hr':            hr_score,
+                'technical':     tech_score,
+                'communication': comm_score,
+                'confidence':    conf_score,
+                'structure':     struct_score,
+            },
+            'question_results':    normalized_question_results,
         },
         status=status.HTTP_200_OK
     )

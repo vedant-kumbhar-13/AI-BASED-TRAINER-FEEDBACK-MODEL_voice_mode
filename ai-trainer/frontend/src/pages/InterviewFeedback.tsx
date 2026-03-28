@@ -1,10 +1,12 @@
-import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Navigation } from '../components/dashboard/Navigation';
 import { 
   RotateCcw, ChevronDown, ChevronUp, 
-  CheckCircle, AlertTriangle, Trophy, ArrowRight, Home
+  CheckCircle, AlertTriangle, Trophy, ArrowRight, Home, Download
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import InterviewAPI from '../services/interviewAPI';
 
 interface QuestionAnswer {
   question: {
@@ -24,45 +26,407 @@ interface QuestionAnswer {
 export const InterviewFeedback = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
 
-  // New flow: { evaluation, sessionId }
-  const evaluation = location.state?.evaluation;
-  // Old flow: { session, feedback, answers }
-  const session  = location.state?.session;
-  const feedback = location.state?.feedback;
-  const answers: QuestionAnswer[] = location.state?.answers || [];
+  // Combine state from location and URL query parameters
+  const routeSessionId = location.state?.sessionId || searchParams.get('sessionId');
 
+  const [loading, setLoading] = useState(!location.state?.evaluation && !location.state?.session);
+  const [evalData] = useState<any>(location.state?.evaluation || null);
+  const [sessionData, setSessionData] = useState<any>(location.state?.session || null);
+  const [feedbackData, setFeedbackData] = useState<any>(location.state?.feedback || null);
+  const [answersData, setAnswersData] = useState<QuestionAnswer[]>(location.state?.answers || []);
   const [expandedQuestion, setExpandedQuestion] = useState<number | null>(0);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+
+  useEffect(() => {
+    const fetchFeedback = async () => {
+      if (routeSessionId && !evalData && !sessionData) {
+        const res = await InterviewAPI.getFeedback(routeSessionId);
+        if (res.success && res.data) {
+           setSessionData(res.data);
+           setFeedbackData(res.data.feedback);
+           
+           // Map the backend questions array to the frontend QuestionAnswer format
+           if (res.data.questions) {
+             const mappedAnswers = res.data.questions
+               .filter((q: any) => q.answer)
+               .map((q: any) => ({
+                 question: {
+                   question_text: q.question_text,
+                   question_number: q.question_number,
+                   category: q.category || 'General'
+                 },
+                 answer: q.answer.answer_text,
+                 feedback: {
+                   score: q.answer.score,
+                   ai_feedback: q.answer.ai_feedback,
+                   strengths: q.answer.strengths || [],
+                   improvements: q.answer.improvements || []
+                 }
+               }));
+             setAnswersData(mappedAnswers);
+           }
+        }
+      }
+      setLoading(false);
+    };
+    fetchFeedback();
+  }, [routeSessionId, evalData, sessionData]);
 
   // ── Extract scores ── prefer new evaluation, fall back to session
-  // NOTE: Backend submit_all already scales 0–10 → 0–100 via to_100()
-  const scores = evaluation?.scores || {};
-  const overallScore       = evaluation
-    ? (evaluation.overall_score ?? 0)
-    : session?.overall_score;
-  const communicationScore = evaluation
+  const scores = evalData?.scores || {};
+  const communicationScore = evalData
     ? (scores.communication ?? 0)
-    : session?.communication_score;
-  const technicalScore = evaluation
+    : sessionData?.communication_score ?? 0;
+  const technicalScore = evalData
     ? (scores.technical ?? 0)
-    : session?.technical_score;
-  const confidenceScore = evaluation
+    : sessionData?.technical_score ?? 0;
+  const confidenceScore = evalData
     ? (scores.confidence ?? 0)
-    : session?.confidence_score;
+    : sessionData?.confidence_score ?? 0;
+
+  // Overall = mathematical average of the three sub-scores
+  const subScores = [communicationScore, technicalScore, confidenceScore].filter((s: number) => s > 0);
+  const overallScore = subScores.length > 0
+    ? Math.round(subScores.reduce((a: number, b: number) => a + b, 0) / subScores.length)
+    : (evalData?.overall_score ?? sessionData?.overall_score ?? 0);
 
   // ── Strengths / improvements ──
-  const strengths: string[]    = evaluation
-    ? (evaluation.top_strength ? [evaluation.top_strength] : [])
-    : (feedback?.strengths || []);
-  const improvements: string[] = evaluation
-    ? (evaluation.top_weakness ? [evaluation.top_weakness] : [])
-    : (feedback?.weaknesses || []);
-  const recommendations: string[] = evaluation?.recommendations || [];
-  const summary: string = evaluation?.summary || feedback?.overall_summary || '';
-  const placement: string = evaluation?.placement_readiness || '';
+  const strengths: string[]    = evalData
+    ? (evalData.top_strength ? [evalData.top_strength] : [])
+    : (feedbackData?.strengths || []);
+  const improvements: string[] = evalData
+    ? (evalData.top_weakness ? [evalData.top_weakness] : [])
+    : (feedbackData?.weaknesses || []);
+  const recommendations: string[] = evalData?.recommendations || [];
+  const summary: string = evalData?.summary || feedbackData?.overall_summary || '';
+  const placement: string = evalData?.placement_readiness || '';
+
+  const handleDownloadPDF = async () => {
+    setIsGeneratingPDF(true);
+    try {
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 15;
+      const contentW = pageW - margin * 2;
+      let y = margin;
+
+      // ── Helper: add a new page if we're near the bottom ──
+      const checkPage = (needed: number) => {
+        if (y + needed > pageH - margin) {
+          pdf.addPage();
+          y = margin;
+        }
+      };
+
+      // ── Helper: draw wrapped text and return lines used ──
+      const drawWrapped = (text: string, x: number, _startY: number, maxW: number, lineH: number, fontSize: number): number => {
+        pdf.setFontSize(fontSize);
+        const lines = pdf.splitTextToSize(text, maxW);
+        for (const line of lines) {
+          checkPage(lineH);
+          pdf.text(line, x, y);
+          y += lineH;
+        }
+        return lines.length;
+      };
+
+      // ═══════════════════  HEADER  ═══════════════════
+      pdf.setFillColor(30, 58, 138); // Deep blue
+      pdf.rect(0, 0, pageW, 52, 'F');
+
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(16);
+      pdf.text('AI-BASED PRE-PLACEMENT TRAINER', pageW / 2, 15, { align: 'center' });
+      pdf.setFontSize(13);
+      pdf.text('& FEEDBACK MODEL', pageW / 2, 23, { align: 'center' });
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(9);
+      pdf.text('Using Mock Aptitude and Interview', pageW / 2, 30, { align: 'center' });
+
+      pdf.setDrawColor(255, 255, 255);
+      pdf.line(margin + 30, 34, pageW - margin - 30, 34);
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(11);
+      pdf.text('INTERVIEW PERFORMANCE REPORT', pageW / 2, 41, { align: 'center' });
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(8);
+      pdf.text(`Generated on: ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`, pageW / 2, 48, { align: 'center' });
+
+      y = 60;
+      pdf.setTextColor(0, 0, 0);
+
+      // ═══════════════════  OVERALL SCORE  ═══════════════════
+      pdf.setFillColor(245, 247, 250);
+      pdf.roundedRect(margin, y, contentW, 28, 3, 3, 'F');
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(22);
+      pdf.text(`${overallScore !== undefined ? Math.round(overallScore) : 'N/A'}`, margin + 8, y + 14);
+      pdf.setFontSize(10);
+      pdf.text('/100  Overall Score', margin + 30, y + 14);
+
+      // Placement readiness badge
+      if (placement) {
+        pdf.setFontSize(9);
+        pdf.setTextColor(30, 58, 138);
+        pdf.text(`Placement: ${placement.replace(/_/g, ' ').toUpperCase()}`, pageW - margin - 5, y + 14, { align: 'right' });
+        pdf.setTextColor(0, 0, 0);
+      }
+
+      // Progress bar
+      pdf.setFillColor(220, 220, 220);
+      pdf.roundedRect(margin + 5, y + 20, contentW - 10, 4, 2, 2, 'F');
+      const barW = Math.max(0, Math.min(contentW - 10, ((overallScore || 0) / 100) * (contentW - 10)));
+      pdf.setFillColor(34, 197, 94); // green
+      if (barW > 0) pdf.roundedRect(margin + 5, y + 20, barW, 4, 2, 2, 'F');
+
+      y += 35;
+
+      // ═══════════════════  SCORE CARDS  ═══════════════════
+      const scores_arr = [
+        { label: 'Communication', value: communicationScore },
+        { label: 'Technical', value: technicalScore },
+        { label: 'Confidence', value: confidenceScore },
+        { label: 'Overall', value: overallScore },
+      ];
+
+      const cardW = (contentW - 9) / 4;
+      scores_arr.forEach((s, i) => {
+        const cx = margin + i * (cardW + 3);
+        pdf.setFillColor(248, 250, 252);
+        pdf.roundedRect(cx, y, cardW, 18, 2, 2, 'F');
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(14);
+        pdf.text(`${s.value !== undefined ? Math.round(s.value) : 'N/A'}%`, cx + cardW / 2, y + 9, { align: 'center' });
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(7);
+        pdf.text(s.label, cx + cardW / 2, y + 15, { align: 'center' });
+      });
+
+      y += 25;
+
+      // ═══════════════════  STRENGTHS & IMPROVEMENTS  ═══════════════════
+      if (strengths.length > 0 || improvements.length > 0) {
+        checkPage(30);
+        const halfW = (contentW - 4) / 2;
+
+        // Strengths
+        pdf.setFillColor(240, 253, 244);
+        pdf.roundedRect(margin, y, halfW, 6, 2, 2, 'F');
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(9);
+        pdf.setTextColor(22, 163, 74);
+        pdf.text('STRENGTHS', margin + 3, y + 4);
+        pdf.setTextColor(0, 0, 0);
+
+        // Improvements
+        pdf.setFillColor(254, 252, 232);
+        pdf.roundedRect(margin + halfW + 4, y, halfW, 6, 2, 2, 'F');
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(9);
+        pdf.setTextColor(202, 138, 4);
+        pdf.text('AREAS TO IMPROVE', margin + halfW + 7, y + 4);
+        pdf.setTextColor(0, 0, 0);
+
+        y += 9;
+
+        // Draw strengths
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(8);
+        const savedY = y;
+        strengths.forEach((s: string) => {
+          checkPage(6);
+          const lines = pdf.splitTextToSize(`- ${s}`, halfW - 6);
+          lines.forEach((line: string) => {
+            pdf.text(line, margin + 3, y);
+            y += 4.5;
+          });
+        });
+        const leftEndY = y;
+
+        // Draw improvements (from same start position)
+        y = savedY;
+        improvements.forEach((s: string) => {
+          checkPage(6);
+          const lines = pdf.splitTextToSize(`- ${s}`, halfW - 6);
+          lines.forEach((line: string) => {
+            pdf.text(line, margin + halfW + 7, y);
+            y += 4.5;
+          });
+        });
+
+        y = Math.max(leftEndY, y) + 6;
+      }
+
+      // ═══════════════════  SUMMARY  ═══════════════════
+      if (summary) {
+        checkPage(20);
+        pdf.setFillColor(239, 246, 255);
+        pdf.roundedRect(margin, y, contentW, 6, 2, 2, 'F');
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(9);
+        pdf.setTextColor(30, 64, 175);
+        pdf.text('OVERALL ASSESSMENT', margin + 3, y + 4);
+        pdf.setTextColor(0, 0, 0);
+        y += 9;
+        pdf.setFont('helvetica', 'normal');
+        drawWrapped(summary, margin + 3, y, contentW - 6, 4.5, 8);
+        y += 4;
+      }
+
+      // ═══════════════════  RECOMMENDATIONS  ═══════════════════
+      if (recommendations.length > 0) {
+        checkPage(20);
+        pdf.setFillColor(245, 243, 255);
+        pdf.roundedRect(margin, y, contentW, 6, 2, 2, 'F');
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(9);
+        pdf.setTextColor(109, 40, 217);
+        pdf.text('RECOMMENDATIONS', margin + 3, y + 4);
+        pdf.setTextColor(0, 0, 0);
+        y += 9;
+        pdf.setFont('helvetica', 'normal');
+        recommendations.forEach((rec: string, i: number) => {
+          drawWrapped(`${i + 1}. ${rec}`, margin + 3, y, contentW - 6, 4.5, 8);
+          y += 1;
+        });
+        y += 3;
+      }
+
+      // ═══════════════════  QUESTION BREAKDOWN  ═══════════════════
+      checkPage(12);
+      pdf.setFillColor(30, 58, 138);
+      pdf.roundedRect(margin, y, contentW, 8, 2, 2, 'F');
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(10);
+      pdf.setTextColor(255, 255, 255);
+      pdf.text('QUESTION-BY-QUESTION BREAKDOWN', margin + 5, y + 5.5);
+      pdf.setTextColor(0, 0, 0);
+      y += 12;
+
+      const questionResults: any[] = evalData?.question_results || [];
+
+      if (questionResults.length > 0) {
+        questionResults.forEach((qr: any) => {
+          checkPage(30);
+          // Question header
+          pdf.setFillColor(248, 250, 252);
+          pdf.roundedRect(margin, y, contentW, 7, 2, 2, 'F');
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(9);
+          pdf.text(`Q${qr.question_index}`, margin + 3, y + 5);
+          y += 10;
+
+          // Feedback
+          if (qr.feedback) {
+            pdf.setFont('helvetica', 'italic');
+            pdf.setFontSize(7.5);
+            pdf.setTextColor(55, 65, 81);
+            drawWrapped(qr.feedback, margin + 5, y, contentW - 10, 4, 7.5);
+            pdf.setTextColor(0, 0, 0);
+            y += 2;
+          }
+          // Strength
+          if (qr.strength) {
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(7.5);
+            pdf.setTextColor(22, 163, 74);
+            drawWrapped(`+ ${qr.strength}`, margin + 5, y, contentW - 10, 4, 7.5);
+            pdf.setTextColor(0, 0, 0);
+          }
+          // Improvement
+          if (qr.improvement) {
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(7.5);
+            pdf.setTextColor(202, 138, 4);
+            drawWrapped(`> ${qr.improvement}`, margin + 5, y, contentW - 10, 4, 7.5);
+            pdf.setTextColor(0, 0, 0);
+          }
+          y += 4;
+        });
+      } else if (answersData.length > 0) {
+        answersData.forEach((qa: QuestionAnswer) => {
+          checkPage(35);
+          // Question header
+          pdf.setFillColor(248, 250, 252);
+          pdf.roundedRect(margin, y, contentW, 7, 2, 2, 'F');
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(9);
+          pdf.text(`Q${qa.question.question_number}: ${qa.question.category}`, margin + 3, y + 5);
+          y += 10;
+
+          // Question text
+          pdf.setFont('helvetica', 'normal');
+          pdf.setFontSize(8);
+          drawWrapped(qa.question.question_text, margin + 5, y, contentW - 10, 4, 8);
+          y += 2;
+
+          // Answer
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(7);
+          pdf.text('Your Answer:', margin + 5, y);
+          y += 4;
+          pdf.setFont('helvetica', 'normal');
+          drawWrapped(qa.answer || '[No answer provided]', margin + 5, y, contentW - 10, 4, 7.5);
+          y += 2;
+
+          // AI Feedback
+          if (qa.feedback?.ai_feedback) {
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(7);
+            pdf.text('AI Feedback:', margin + 5, y);
+            y += 4;
+            pdf.setFont('helvetica', 'italic');
+            pdf.setTextColor(30, 64, 175);
+            drawWrapped(qa.feedback.ai_feedback, margin + 5, y, contentW - 10, 4, 7.5);
+            pdf.setTextColor(0, 0, 0);
+          }
+          y += 5;
+          // Separator line
+          pdf.setDrawColor(230, 230, 230);
+          pdf.line(margin + 5, y, pageW - margin - 5, y);
+          y += 4;
+        });
+      }
+
+      // ═══════════════════  FOOTER  ═══════════════════
+      const totalPages = pdf.getNumberOfPages();
+      for (let p = 1; p <= totalPages; p++) {
+        pdf.setPage(p);
+        pdf.setFontSize(7);
+        pdf.setTextColor(150, 150, 150);
+        pdf.text(
+          `AI-Based Pre-Placement Trainer & Feedback Model  |  Page ${p} of ${totalPages}`,
+          pageW / 2, pageH - 6, { align: 'center' }
+        );
+      }
+
+      pdf.save(`AI_Interview_Report_${routeSessionId?.split('-')[0] || 'Result'}.pdf`);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-500 font-medium">Loading your detailed feedback...</p>
+        </div>
+      </div>
+    );
+  }
 
   // ── Per-question results from submit-all ──
-  const questionResults: any[] = evaluation?.question_results || [];
+  const questionResults: any[] = evalData?.question_results || [];
 
   const getScoreColor = (score: number) => {
     if (score >= 80) return 'text-green-500';
@@ -82,7 +446,7 @@ export const InterviewFeedback = () => {
       <Navigation />
       
       <main className="pt-16">
-        <div className="max-w-4xl mx-auto px-6 py-8">
+        <div id="feedback-report-content" className="max-w-4xl mx-auto px-6 py-8">
           {/* Summary Card */}
           <div className="bg-white rounded-2xl border border-gray-200 p-8 mb-8 shadow-card">
             <div className="text-center mb-8">
@@ -215,7 +579,6 @@ export const InterviewFeedback = () => {
             {questionResults.length > 0 ? (
               /* New flow: per-question results from submit-all */
               questionResults.map((qr: any, index: number) => {
-                const scoreVal = Math.round(qr.score ?? 0);
                 return (
                   <div key={index} className="border-b border-gray-100 last:border-0">
                     <button
@@ -231,7 +594,6 @@ export const InterviewFeedback = () => {
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className={`font-bold ${getScoreColor(scoreVal)}`}>{scoreVal}%</span>
                         {expandedQuestion === index
                           ? <ChevronUp className="w-5 h-5 text-gray-400" />
                           : <ChevronDown className="w-5 h-5 text-gray-400" />}
@@ -258,9 +620,9 @@ export const InterviewFeedback = () => {
                   </div>
                 );
               })
-            ) : answers.length > 0 ? (
+            ) : answersData.length > 0 ? (
               /* Old flow: session answers */
-              answers.map((qa, index) => (
+              answersData.map((qa: QuestionAnswer, index: number) => (
                 <div key={index} className="border-b border-gray-100 last:border-0">
                   <button
                     onClick={() => setExpandedQuestion(expandedQuestion === index ? null : index)}
@@ -276,9 +638,6 @@ export const InterviewFeedback = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className={`font-bold ${getScoreColor(qa.feedback?.score || 70)}`}>
-                        {qa.feedback?.score || 70}%
-                      </span>
                       {expandedQuestion === index
                         ? <ChevronUp className="w-5 h-5 text-gray-400" />
                         : <ChevronDown className="w-5 h-5 text-gray-400" />}
@@ -308,7 +667,19 @@ export const InterviewFeedback = () => {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
+            <button
+              onClick={handleDownloadPDF}
+              disabled={isGeneratingPDF}
+              className={`px-6 py-3 font-bold rounded-xl flex items-center justify-center gap-2 ${
+                isGeneratingPDF 
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                  : 'bg-green-600 hover:bg-green-700 text-white shadow-button'
+              }`}
+            >
+              <Download className="w-5 h-5" />
+              {isGeneratingPDF ? 'Generating...' : 'Download PDF Report'}
+            </button>
             <button
               onClick={() => navigate('/ai-interview')}
               className="px-6 py-3 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl shadow-button flex items-center justify-center gap-2"

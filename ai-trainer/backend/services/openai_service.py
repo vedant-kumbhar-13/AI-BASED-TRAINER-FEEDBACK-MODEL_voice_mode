@@ -35,19 +35,20 @@ MODEL_NAME = 'gemini-2.5-flash'
 # Distribution: Q1=HR opener, Q2=Behavioral, Q3=HR closing, Q4-Q8=Technical
 # Returns: list of 8 dicts → [{text: str, type: str}, ...]
 # ---------------------------------------------------------------------------
-def generate_questions(resume):
+def generate_questions(resume, num_questions=8):
     """
-    Generate 8 interview questions tailored to the candidate's resume.
+    Generate interview questions tailored to the candidate's resume.
 
     Args:
         resume (dict or Resume model instance): parsed resume with fields:
             raw_text, skills, experience, education, projects, summary
+        num_questions (int): number of questions to generate (default 8)
 
     Returns:
-        list: 8 dicts, each with 'text' (question string) and 'type' (HR/Technical/Behavioral)
+        list: dicts, each with 'text' (question string) and 'type' (HR/Technical/Behavioral)
 
     Raises:
-        ValueError: if Gemini returns invalid JSON or not exactly 8 questions
+        ValueError: if Gemini returns invalid JSON or wrong question count
     """
     # -----------------------------------------------------------------------
     # Build resume context from available fields
@@ -104,6 +105,36 @@ def generate_questions(resume):
     # -----------------------------------------------------------------------
     # Prompt
     # -----------------------------------------------------------------------
+    # Build a dynamic question distribution based on the requested count
+    distribution_lines = []
+    if num_questions <= 3:
+        templates = [
+            ('HR', 'Warm opening (introduce yourself or tell about background)'),
+            ('Technical', 'Reference a skill or project from their resume'),
+            ('Behavioral', 'Situation-based question (teamwork, problem-solving)'),
+        ]
+        for i in range(num_questions):
+            t = templates[i % len(templates)]
+            distribution_lines.append(f"Q{i+1} - Type: {t[0]} - {t[1]}")
+    else:
+        # Proportional: ~25% HR/Behavioral, ~75% Technical
+        hr_count = max(1, num_questions // 4)
+        behavioral_count = max(1, num_questions // 4)
+        tech_count = num_questions - hr_count - behavioral_count
+
+        q_num = 1
+        for i in range(hr_count):
+            distribution_lines.append(f"Q{q_num} - Type: HR - HR or soft-skill question")
+            q_num += 1
+        for i in range(behavioral_count):
+            distribution_lines.append(f"Q{q_num} - Type: Behavioral - Situation-based question")
+            q_num += 1
+        for i in range(tech_count):
+            distribution_lines.append(f"Q{q_num} - Type: Technical - Technical question relevant to resume")
+            q_num += 1
+
+    distribution_text = chr(10).join(distribution_lines)
+
     user_prompt = f"""
 Candidate Profile:
 - Name: {candidate_name}
@@ -114,25 +145,18 @@ Candidate Profile:
 {chr(10).join(project_summaries) or '  Not specified'}
 - Summary: {summary or 'Not provided'}
 
-Generate exactly 8 interview questions with this STRICT distribution:
-Q1 - Type: HR       - Warm opening (introduce yourself)
-Q2 - Type: Behavioral - Situation-based question (teamwork/conflict)
-Q3 - Type: HR       - Closing question (strengths or why this role)
-Q4 - Type: Technical - Reference a skill from their list
-Q5 - Type: Technical - Reference a project they listed
-Q6 - Type: Technical - Core CS concept
-Q7 - Type: Technical - Problem-solving related to stack
-Q8 - Type: Technical - Deep understanding of key tech
+Generate exactly {num_questions} interview questions with this distribution:
+{distribution_text}
 
 CRITICAL LIMITS:
 - Keep every question extremely short and direct (max 15-20 words).
 - Avoid lengthy narrative setups.
-- Return ONLY a valid JSON array.
+- Return ONLY a valid JSON array with exactly {num_questions} items.
 
 Format:
 [
   {{"text": "question here", "type": "HR"}},
-  {{"text": "question here", "type": "Behavioral"}},
+  {{"text": "question here", "type": "Technical"}},
   ...
 ]
 """
@@ -169,13 +193,14 @@ Format:
     except json.JSONDecodeError as e:
         raise ValueError(f"Gemini returned invalid JSON for questions: {e}\nRaw: {raw_text[:300]}")
 
-    if not isinstance(questions, list) or len(questions) != 8:
+    if not isinstance(questions, list) or len(questions) != num_questions:
         raise ValueError(
-            f"Expected a list of exactly 8 questions, got {type(questions).__name__} "
+            f"Expected a list of exactly {num_questions} questions, got {type(questions).__name__} "
             f"with {len(questions) if isinstance(questions, list) else '?'} items."
         )
 
-    return questions
+    # Trim to exact count if Gemini returned extras
+    return questions[:num_questions]
 
 
 # ---------------------------------------------------------------------------

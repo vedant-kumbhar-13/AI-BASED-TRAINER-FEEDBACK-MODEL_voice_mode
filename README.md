@@ -24,13 +24,14 @@ An intelligent training platform that leverages Google Gemini AI to conduct pers
 
 - **Browser-Native Voice Input** — Uses the **Web Speech API** (built into Chrome/Edge) for real-time speech-to-text. No API key required.
 - **Text-to-Speech Read-Back** — Interview questions are read aloud by the browser automatically.
-- **Dynamic Question Generation** — Google Gemini generates 8 personalised interview questions from your uploaded resume in a single AI call.
+- **Dynamic Question Generation** — Google Gemini generates 1 to 8 personalised interview questions (configured by user) from the uploaded resume in a single AI call.
 - **Holistic AI Evaluation** — All answers submitted at once for a single-pass Gemini evaluation, returning:
-  - Overall score (0–100)
-  - Per-dimension scores: Communication, Technical, Confidence, HR
+  - Overall score (mathemathically accurate 0–100 average)
+  - Per-dimension scores: Communication, Technical, Confidence
   - Per-question feedback, strength, and improvement
   - Placement readiness label + top 3 recommendations
 - **Review Before Submit** — Review and edit any answer before final submission.
+- **Robust PDF Reports** — A complete, downloadable PDF report of the interview performance using native jsPDF drawing, ensuring perfectly aligned text, branded headers, and clean page layouts.
 - **Interview History** — Full history of past sessions with scores and feedback.
 
 ### 📚 Aptitude Training Module
