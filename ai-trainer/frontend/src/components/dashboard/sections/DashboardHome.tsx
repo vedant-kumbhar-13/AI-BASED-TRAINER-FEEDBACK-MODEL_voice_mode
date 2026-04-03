@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import InterviewAPI from '../../../services/interviewAPI';
 import AuthService from '../../../services/authService';
+import { TOPICS, getAllProgress } from '../../../data/aptitudeData';
 
 // Types for interview data
 interface InterviewStats {
@@ -22,31 +23,17 @@ interface InterviewStats {
   by_type: Record<string, { count: number; average_score: number }>;
 }
 
-// Using InterviewSession from interviewAPI.ts instead of local interface
-
 interface ChartDataPoint {
   date: string;
   score: number;
   type: string;
 }
 
-// Aptitude Topics for Learning Progress
-const APTITUDE_TOPICS = [
-  { id: 1, name: 'Percentage', icon: '📊', level: 'Beginner' },
-  { id: 2, name: 'Number Series', icon: '🔢', level: 'Intermediate' },
-  { id: 3, name: 'Profit and Loss', icon: '💰', level: 'Intermediate' },
-  { id: 4, name: 'Ratio & Proportion', icon: '⚖️', level: 'Beginner' },
-  { id: 5, name: 'Time and Work', icon: '⏱️', level: 'Hard' },
-];
-
-// Helper to get aptitude progress from localStorage
-const getAptitudeProgress = () => {
-  try {
-    const stored = localStorage.getItem('aptitude-progress');
-    return stored ? JSON.parse(stored) : {};
-  } catch {
-    return {};
-  }
+// Category info for grouping topics in dashboard
+const CATEGORY_INFO: Record<string, { label: string; icon: string; color: string }> = {
+  quantitative:        { label: 'Quantitative',       icon: '🔢', color: 'text-blue-600' },
+  data_interpretation: { label: 'Data Interpretation', icon: '📊', color: 'text-purple-600' },
+  logical_reasoning:   { label: 'Logical Reasoning',   icon: '🧠', color: 'text-green-600' },
 };
 
 export const DashboardHome = () => {
@@ -58,7 +45,6 @@ export const DashboardHome = () => {
     // Get username from AuthService
     const user = AuthService.getUser();
     if (user) {
-      // Use first_name if available, otherwise username, otherwise email prefix
       const displayName = user.first_name || user.username || user.email?.split('@')[0] || 'User';
       setUsername(displayName);
     }
@@ -66,19 +52,16 @@ export const DashboardHome = () => {
     // Fetch interview stats and history
     const fetchData = async () => {
       try {
-        // Fetch stats
         const statsResult = await InterviewAPI.getStats();
         if (statsResult.success && statsResult.stats) {
           setStats(statsResult.stats);
         }
 
-        // Fetch history for chart data
         const historyResult = await InterviewAPI.getHistory({ page_size: 12, status: 'completed' });
         if (historyResult.success && historyResult.results) {
-          // Transform history to chart data
           const transformedData: ChartDataPoint[] = historyResult.results
             .filter((item: any) => item.overall_score !== null)
-            .reverse() // Oldest first for chart
+            .reverse()
             .map((item: any) => {
               const d = new Date(item.created_at);
               return {
@@ -97,7 +80,7 @@ export const DashboardHome = () => {
     fetchData();
   }, []);
 
-  // Calculate chart metrics referencing global stats
+  // Calculate chart metrics
   const hasInterviewData = chartData.length > 0;
   const highestScore = stats?.best_score ? Math.round(stats.best_score) : (hasInterviewData ? Math.max(...chartData.map((d) => d.score)) : 0);
   const lowestScore = hasInterviewData ? Math.min(...chartData.map((d) => d.score)) : 0;
@@ -141,7 +124,7 @@ export const DashboardHome = () => {
         </div>
 
         <div className="grid grid-cols-1 gap-6">
-          {/* Chart Card (Full width) */}
+          {/* Chart Card */}
           <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-card">
             <div className="mb-4 pb-4 border-b border-gray-200">
               <h3 className="text-lg font-bold text-gray-800 mb-1">Your Interview Score Trend</h3>
@@ -247,10 +230,10 @@ export const DashboardHome = () => {
         </div>
       </div>
 
-      {/* Section 4: Aptitude Learning Progress */}
+      {/* Section 4: Aptitude Learning Progress — REAL DATA */}
       <AptitudePerformanceSection />
 
-      {/* Section 6: AI Interview Banner */}
+      {/* Section 5: AI Interview Banner */}
       <div className="mt-12 bg-gradient-to-br from-primary-light to-white border-2 border-primary rounded-xl p-8">
         <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
           <div className="flex-1">
@@ -272,23 +255,43 @@ export const DashboardHome = () => {
   );
 };
 
-// Aptitude Performance Section Component
+// ═══════════════════════════════════════════════════════════
+// Aptitude Performance Section — uses REAL topic data
+// ═══════════════════════════════════════════════════════════
 const AptitudePerformanceSection = () => {
-  const progress = getAptitudeProgress();
-  const completedTopics = Object.keys(progress).length;
-  const totalTopics = APTITUDE_TOPICS.length;
+  const progress = getAllProgress();
+  const quizTopics = TOPICS.filter(t => t.hasQuiz);
+  const totalTopics = quizTopics.length;
+  const completedTopics = quizTopics.filter(t => progress[t.id]?.completed).length;
   
-  // Calculate overall stats
-  const scores = Object.values(progress).map((p: any) => p.bestScore);
-  const avgScore = scores.length > 0 ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length) : 0;
-  const bestScore = scores.length > 0 ? Math.max(...scores as number[]) : 0;
-  const totalAttempts = Object.values(progress).reduce((sum: number, p: any) => sum + (p.attempts || 0), 0);
+  // Calculate overall stats from real progress
+  const scores = quizTopics
+    .filter(t => progress[t.id]?.completed)
+    .map(t => progress[t.id].bestScore);
+  const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+  const bestScore = scores.length > 0 ? Math.max(...scores) : 0;
+  const totalAttempts = quizTopics.reduce((sum, t) => sum + (progress[t.id]?.attempts || 0), 0);
+
+  // Group topics by category
+  const grouped = quizTopics.reduce<Record<string, typeof quizTopics>>((acc, t) => {
+    const cat = t.category || 'other';
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(t);
+    return acc;
+  }, {});
+
+  const levelColors: Record<string, string> = {
+    Beginner: 'bg-green-100 text-green-700',
+    Intermediate: 'bg-yellow-100 text-yellow-700',
+    Advanced: 'bg-red-100 text-red-700',
+    Hard: 'bg-red-100 text-red-700'
+  };
 
   return (
     <div className="pt-8">
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-800 mb-1">Aptitude Learning Progress</h2>
-        <p className="text-xs text-gray-400">Track your quiz performance across topics</p>
+        <p className="text-xs text-gray-400">Track your quiz performance across {totalTopics} topics • 3 categories</p>
       </div>
 
       {/* Stats Row */}
@@ -306,50 +309,66 @@ const AptitudePerformanceSection = () => {
           <p className="text-xs text-gray-400">Average Score</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-          <p className="text-2xl font-bold text-gray-800">{totalAttempts || 'NA'}</p>
+          <p className="text-2xl font-bold text-gray-800">{totalAttempts > 0 ? totalAttempts : 'NA'}</p>
           <p className="text-xs text-gray-400">Total Attempts</p>
         </div>
       </div>
 
-      {/* Topic Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-        {APTITUDE_TOPICS.map((topic) => {
-          const topicProgress = progress[topic.id] || null;
-          const levelColors: Record<string, string> = {
-            Beginner: 'bg-green-100 text-green-700',
-            Intermediate: 'bg-yellow-100 text-yellow-700',
-            Hard: 'bg-red-100 text-red-700'
-          };
-
-          return (
-            <Link
-              key={topic.id}
-              to={`/learning/${topic.id}`}
-              className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-card-hover transition-all text-center"
-            >
-              <span className="text-3xl block mb-2">{topic.icon}</span>
-              <h3 className="text-sm font-bold text-gray-800 mb-1">{topic.name}</h3>
-              <span className={`inline-block px-2 py-0.5 text-xs rounded-full mb-2 ${levelColors[topic.level]}`}>
-                {topic.level}
+      {/* Category-grouped Topic Cards */}
+      {Object.entries(grouped).map(([catKey, catTopics]) => {
+        const catInfo = CATEGORY_INFO[catKey] || { label: catKey, icon: '📘', color: 'text-gray-600' };
+        const catCompleted = catTopics.filter(t => progress[t.id]?.completed).length;
+        
+        return (
+          <div key={catKey} className="mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">{catInfo.icon}</span>
+              <h3 className={`text-sm font-bold ${catInfo.color}`}>
+                {catInfo.label}
+              </h3>
+              <span className="text-xs text-gray-400 ml-auto">
+                {catCompleted}/{catTopics.length} completed
               </span>
-              
-              {topicProgress ? (
-                <div className="mt-2 pt-2 border-t border-gray-100">
-                  <p className="text-lg font-bold text-primary">{topicProgress.bestScore}%</p>
-                  <p className="text-xs text-gray-400">{topicProgress.attempts} attempt{topicProgress.attempts !== 1 ? 's' : ''}</p>
-                </div>
-              ) : (
-                <div className="mt-2 pt-2 border-t border-gray-100">
-                  <p className="text-sm text-gray-400">Not started</p>
-                </div>
-              )}
-            </Link>
-          );
-        })}
-      </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              {catTopics.map((topic) => {
+                const topicProgress = progress[topic.id] || null;
+
+                return (
+                  <Link
+                    key={topic.id}
+                    to={`/quiz/${topic.id}`}
+                    className="bg-white border border-gray-200 rounded-lg p-3 hover:shadow-card-hover transition-all text-center group"
+                  >
+                    <span className="text-2xl block mb-1">{topic.icon}</span>
+                    <h4 className="text-xs font-bold text-gray-800 mb-1 line-clamp-2 group-hover:text-primary transition">
+                      {topic.name}
+                    </h4>
+                    <span className={`inline-block px-2 py-0.5 text-[10px] rounded-full mb-1 ${levelColors[topic.level]}`}>
+                      {topic.level}
+                    </span>
+                    
+                    {topicProgress ? (
+                      <div className="mt-1 pt-1 border-t border-gray-100">
+                        <p className="text-base font-bold text-primary">{topicProgress.bestScore}%</p>
+                        <p className="text-[10px] text-gray-400">{topicProgress.attempts} attempt{topicProgress.attempts !== 1 ? 's' : ''}</p>
+                      </div>
+                    ) : (
+                      <div className="mt-1 pt-1 border-t border-gray-100">
+                        <p className="text-xs text-gray-400">Not started</p>
+                      </div>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
 
       {/* Action Buttons */}
-      <div className="flex flex-wrap gap-4">
+      <div className="flex flex-wrap gap-4 mt-4">
         <Link
           to="/learning"
           className="px-6 py-3 bg-primary hover:bg-primary-dark text-white font-bold text-sm rounded-lg shadow-button transition"
@@ -415,7 +434,6 @@ const BookIcon = () => (
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
   </svg>
 );
-
 
 const TrophyIcon = () => (
   <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">

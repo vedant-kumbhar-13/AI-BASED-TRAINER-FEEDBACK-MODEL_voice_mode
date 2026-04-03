@@ -6,8 +6,11 @@ export interface Topic {
 	definition: string;
 	description: string;
 	videoUrl: string;
-	level: "Beginner" | "Intermediate" | "Hard";
+	level: "Beginner" | "Intermediate" | "Advanced" | "Hard";
 	icon: string;
+	category?: string;
+	categoryLabel?: string;
+	hasQuiz?: boolean;
 }
 
 export interface Question {

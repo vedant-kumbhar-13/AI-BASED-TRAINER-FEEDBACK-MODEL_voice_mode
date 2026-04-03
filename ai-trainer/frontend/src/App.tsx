@@ -84,7 +84,7 @@ function App() {
             <Learning />
           </ProtectedRoute>
         } />
-        <Route path="/learning/:topicId" element={
+        <Route path="/learning/:topicSlug" element={
           <ProtectedRoute>
             <Learning />
           </ProtectedRoute>

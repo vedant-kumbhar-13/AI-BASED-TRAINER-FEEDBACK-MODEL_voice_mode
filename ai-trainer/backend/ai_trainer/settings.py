@@ -180,6 +180,13 @@ CORS_ALLOW_CREDENTIALS = True
 # Gemini AI Configuration
 # ===========================================
 GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
+GEMINI_API_KEYS = config('GEMINI_API_KEYS', default=GEMINI_API_KEY, cast=Csv())
+
+
+# ===========================================
+# YouTube Data API v3 Configuration
+# ===========================================
+YOUTUBE_API_KEY = config('YOUTUBE_API_KEY', default='')
 
 
 # ===========================================

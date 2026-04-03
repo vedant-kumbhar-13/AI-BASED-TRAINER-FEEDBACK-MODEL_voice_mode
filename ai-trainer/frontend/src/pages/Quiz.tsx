@@ -1,15 +1,25 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Navigation } from '../components/dashboard/Navigation';
 import { QuestionCard, QuizProgress, QuizTimer } from '../components/quiz';
 import { getTopicById, getQuestionsByTopicId, saveProgress } from '../data/aptitudeData';
+
+const QUIZ_QUESTION_COUNT = 10;  // Questions per quiz attempt
+const QUIZ_TIME_SECONDS = 600;   // 10 minutes
 
 export const Quiz = () => {
   const { topicId } = useParams();
   const navigate = useNavigate();
   
   const topic = topicId ? getTopicById(parseInt(topicId)) : null;
-  const questions = topicId ? getQuestionsByTopicId(parseInt(topicId)) : [];
+  const allQuestions = topicId ? getQuestionsByTopicId(parseInt(topicId)) : [];
+  
+  // Randomly select QUIZ_QUESTION_COUNT questions (memoized so it stays stable)
+  const questions = useMemo(() => {
+    if (allQuestions.length <= QUIZ_QUESTION_COUNT) return allQuestions;
+    const shuffled = [...allQuestions].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, QUIZ_QUESTION_COUNT);
+  }, [topicId]); // eslint-disable-line react-hooks/exhaustive-deps
   
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
@@ -107,11 +117,18 @@ export const Quiz = () => {
                 <span className="text-3xl">{topic.icon}</span>
                 <div>
                   <h1 className="text-lg font-bold text-gray-800">{topic.name} Quiz</h1>
-                  <p className="text-xs text-gray-500">{questions.length} questions • 5 minutes</p>
+                  <p className="text-xs text-gray-500">
+                    {questions.length} questions • {QUIZ_TIME_SECONDS / 60} minutes
+                    {allQuestions.length > QUIZ_QUESTION_COUNT && (
+                      <span className="text-primary ml-1">
+                        (from {allQuestions.length} available)
+                      </span>
+                    )}
+                  </p>
                 </div>
               </div>
               <Link
-                to={`/learning/${topicId}`}
+                to={`/learning/${topic.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`}
                 className="text-sm text-primary hover:text-primary-dark font-medium"
               >
                 ← Back to Topic
@@ -148,12 +165,7 @@ export const Quiz = () => {
                 {currentQuestionIndex === questions.length - 1 ? (
                   <button
                     onClick={handleSubmit}
-                    disabled={answeredCount < questions.length}
-                    className={`px-8 py-3 rounded-lg font-bold text-sm transition ${
-                      answeredCount < questions.length
-                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : 'bg-primary hover:bg-primary-dark text-white shadow-button'
-                    }`}
+                    className="px-8 py-3 rounded-lg font-bold text-sm transition bg-primary hover:bg-primary-dark text-white shadow-button"
                   >
                     Submit Quiz ✓
                   </button>
@@ -172,7 +184,7 @@ export const Quiz = () => {
             <div className="space-y-4">
               {/* Timer */}
               <QuizTimer
-                totalSeconds={300} // 5 minutes
+                totalSeconds={QUIZ_TIME_SECONDS}
                 onTimeUp={handleTimeUp}
                 isRunning={isTimerRunning}
               />

@@ -19,10 +19,10 @@ urlpatterns = [
     # API endpoints
     path('api/auth/', include('apps.accounts.urls')),
     path('api/interview/', include('apps.interview.urls')),
-    
+    path('api/learning/', include('apps.learning.urls')),
+
     # Future modules
     # path('api/aptitude/', include('apps.aptitude.urls')),
-    # path('api/learning/', include('apps.learning.urls')),
     # path('api/dashboard/', include('apps.dashboard.urls')),
 ]
 
