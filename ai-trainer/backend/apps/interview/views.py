@@ -487,12 +487,12 @@ def submit_all(request):
         conf_score   = normalize_score(scores.get('confidence'))
         struct_score = normalize_score(scores.get('structure'))
 
-        # Calculate overall score as the mean of valid sub-metrics
-        metrics = [hr_score, tech_score, comm_score, conf_score, struct_score]
-        valid_metrics = [m for m in metrics if m > 0]
+        # Calculate overall score as the strict arithmetic average of the
+        # three scores displayed on the UI: communication, technical, confidence.
+        # Always include zeros so the number is a transparent mathematical average.
         calculated_overall = round(
-            sum(valid_metrics) / len(valid_metrics), 1
-        ) if valid_metrics else normalize_score(evaluation.get('overall_score'))
+            (comm_score + tech_score + conf_score) / 3, 1
+        )
 
         # Update session scores and mark completed
         session.status              = 'completed'

@@ -86,11 +86,10 @@ export const InterviewFeedback = () => {
     ? (scores.confidence ?? 0)
     : sessionData?.confidence_score ?? 0;
 
-  // Overall = mathematical average of the three sub-scores
-  const subScores = [communicationScore, technicalScore, confidenceScore].filter((s: number) => s > 0);
-  const overallScore = subScores.length > 0
-    ? Math.round(subScores.reduce((a: number, b: number) => a + b, 0) / subScores.length)
-    : (evalData?.overall_score ?? sessionData?.overall_score ?? 0);
+  // Overall = strict arithmetic average of the three displayed sub-scores
+  const overallScore = Math.round(
+    (communicationScore + technicalScore + confidenceScore) / 3
+  );
 
   // ── Strengths / improvements ──
   const strengths: string[]    = evalData
