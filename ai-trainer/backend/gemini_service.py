@@ -2,7 +2,8 @@
 # Add this method to your existing GeminiService class
 # (keep all existing methods, just add generate_next_question below)
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types as genai_types
 import json
 import re
 from django.conf import settings
@@ -10,8 +11,8 @@ from django.conf import settings
 
 class GeminiService:
     def __init__(self):
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel('gemini-2.5-flash')
+        self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        self.model_name = 'gemini-2.5-flash'
 
     # ──────────────────────────────────────────────────────────────────────────
     # CONVERSATIONAL INTERVIEW — core method
@@ -112,12 +113,13 @@ Return ONLY this JSON (no markdown, no backticks, no extra text):
 }}"""
 
         try:
-            response = self.model.generate_content(
-                prompt,
-                generation_config=genai.GenerationConfig(
-                    temperature=0.7,       # some creativity but consistent
-                    max_output_tokens=300, # short responses — it's just one question
-                )
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=genai_types.GenerateContentConfig(
+                    temperature=0.7,
+                    max_output_tokens=300,
+                ),
             )
             raw = response.text.strip()
             # Strip accidental markdown fences
@@ -216,12 +218,13 @@ Readiness scale:
 "Exceptional" = 8.5-10"""
 
         try:
-            response = self.model.generate_content(
-                prompt,
-                generation_config=genai.GenerationConfig(
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=genai_types.GenerateContentConfig(
                     temperature=0.2,
                     max_output_tokens=3000,
-                )
+                ),
             )
             raw = response.text.strip()
             raw = re.sub(r'```(?:json)?', '', raw).strip().rstrip('`').strip()

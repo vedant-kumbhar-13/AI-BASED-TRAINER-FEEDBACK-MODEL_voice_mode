@@ -13,7 +13,7 @@ import logging
 import re
 import time
 
-import google.generativeai as genai
+from google import genai
 from django.conf import settings
 
 from apps.learning.services import fetch_youtube_videos  # reuse exact same YouTube logic
@@ -35,8 +35,8 @@ class AptitudeAIService:
         self._configure()
 
     def _configure(self):
-        genai.configure(api_key=self.api_keys[self.key_idx])
-        self.model = genai.GenerativeModel('gemini-2.5-flash')
+        self.client = genai.Client(api_key=self.api_keys[self.key_idx])
+        self.model_name = 'gemini-2.5-flash'
 
     def _rotate(self):
         if self.key_idx < len(self.api_keys) - 1:
@@ -49,7 +49,10 @@ class AptitudeAIService:
         """Call Gemini with key rotation on 429. Returns raw text."""
         for attempt in range(max_attempts):
             try:
-                resp = self.model.generate_content(prompt)
+                resp = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=prompt,
+                )
                 return resp.text.strip()
             except Exception as e:
                 err = str(e).lower()

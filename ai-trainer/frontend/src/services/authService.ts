@@ -59,7 +59,7 @@ class AuthService {
         return { success: true, message: 'Registration successful', ...result };
       }
       
-      return { success: false, error: result.detail || result.error || 'Registration failed' };
+      return { success: false, error: this.extractError(result, 'Registration failed') };
     } catch (error) {
       return { success: false, error: 'Network error. Please try again.' };
     }
@@ -94,10 +94,29 @@ class AuthService {
         return { success: true, ...result };
       }
 
-      return { success: false, error: result.detail || result.error || 'Invalid credentials' };
+      return { success: false, error: this.extractError(result, 'Invalid credentials') };
     } catch (error) {
       return { success: false, error: 'Network error. Please try again.' };
     }
+  }
+
+  /**
+   * Extract error message from DRF response (handles non_field_errors, field errors, etc.)
+   */
+  private static extractError(result: Record<string, unknown>, fallback: string): string {
+    if (typeof result === 'string') return result;
+    if (result.detail) return String(result.detail);
+    if (result.error) return String(result.error);
+    // DRF non_field_errors
+    if (Array.isArray(result.non_field_errors)) return result.non_field_errors.join('. ');
+    // Field-level errors: {email: ['already registered'], password: ['too short']}
+    const fieldErrors: string[] = [];
+    for (const [key, val] of Object.entries(result)) {
+      if (key === 'success') continue;
+      if (Array.isArray(val)) fieldErrors.push(`${key}: ${val.join(', ')}`);
+      else if (typeof val === 'string') fieldErrors.push(val);
+    }
+    return fieldErrors.length > 0 ? fieldErrors.join('. ') : fallback;
   }
 
   /**

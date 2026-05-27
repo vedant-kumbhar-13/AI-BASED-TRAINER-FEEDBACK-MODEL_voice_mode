@@ -1,4 +1,4 @@
-import google.generativeai as genai
+from google import genai
 from django.conf import settings
 import logging
 import time
@@ -22,9 +22,9 @@ class GeminiLearningService:
         
     def _configure_active_key(self):
         active_key = self.api_keys[self.current_key_idx].strip()
-        genai.configure(api_key=active_key)
+        self.client = genai.Client(api_key=active_key)
         # Using flash model for faster, cheaper generation that is sufficient for text tutorials
-        self.model = genai.GenerativeModel('gemini-2.5-flash')
+        self.model_name = 'gemini-2.5-flash'
         logger.info(f"Configured Gemini with API key index {self.current_key_idx} (partial: {active_key[:4]}...)")
 
     def _rotate_key(self) -> bool:
@@ -64,7 +64,10 @@ Generate the HTML tutorial now:"""
         
         while attempt < max_attempts:
             try:
-                response = self.model.generate_content(prompt)
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=prompt,
+                )
                 
                 # Check if generated content was blocked by safety settings
                 if hasattr(response, 'prompt_feedback') and response.prompt_feedback.block_reason:

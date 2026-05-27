@@ -10,4 +10,7 @@ python manage.py collectstatic --noinput || echo "WARNING: collectstatic failed 
 echo "=== Step 3: Running migrations ==="
 python manage.py migrate
 
+echo "=== Step 4: Creating superuser (if not exists) ==="
+python manage.py createsuperuser --noinput || echo "Superuser already exists, skipping."
+
 echo "=== Build complete! ==="

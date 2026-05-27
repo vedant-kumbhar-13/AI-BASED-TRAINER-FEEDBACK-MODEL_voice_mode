@@ -15,7 +15,8 @@ import re
 import json
 import logging
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types as genai_types
 
 logger = logging.getLogger(__name__)
 
@@ -54,9 +55,13 @@ _current_key_idx: int = 0
 # Single model used for everything — tested and confirmed working
 MODEL_NAME = "gemini-2.5-flash"
 
+# Client instance — re-created on key rotation
+_client: genai.Client = None
+
 
 def _configure(idx: int):
-    genai.configure(api_key=_API_KEYS[idx])
+    global _client
+    _client = genai.Client(api_key=_API_KEYS[idx])
 
 
 # Configure on startup
@@ -75,15 +80,15 @@ def _call_gemini(prompt: str, system: str, max_output_tokens: int, temperature: 
         key_idx = (_current_key_idx + attempt) % len(_API_KEYS)
         _configure(key_idx)
         try:
-            model = genai.GenerativeModel(
-                model_name=MODEL_NAME,
-                system_instruction=system,
-                generation_config=genai.types.GenerationConfig(
+            response = _client.models.generate_content(
+                model=MODEL_NAME,
+                contents=prompt,
+                config=genai_types.GenerateContentConfig(
+                    system_instruction=system,
                     temperature=temperature,
                     max_output_tokens=max_output_tokens,
                 ),
             )
-            response = model.generate_content(prompt)
             _current_key_idx = key_idx  # remember the working key
             return (response.text or "").strip()
         except Exception as e:

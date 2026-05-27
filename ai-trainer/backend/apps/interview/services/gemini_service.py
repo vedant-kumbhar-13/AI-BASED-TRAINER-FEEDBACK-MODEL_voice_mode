@@ -10,7 +10,7 @@ import json
 import logging
 import re
 
-import google.generativeai as genai
+from google import genai
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ class GeminiService:
     def __init__(self):
         """Initialise using the shared key pool."""
         try:
-            from services.openai_service import _API_KEYS, _current_key_idx, _configure
+            from services.openai_service import _API_KEYS, _current_key_idx, _configure, _client
             self._api_keys  = _API_KEYS
             self._key_idx   = _current_key_idx
             self._configure = _configure
@@ -43,12 +43,20 @@ class GeminiService:
             if not self._api_keys:
                 raise ValueError("No valid GEMINI_API_KEY found.")
             self._key_idx   = 0
-            self._configure = lambda idx: genai.configure(api_key=self._api_keys[idx])
+            self._client = None
+            self._configure = self._do_configure
 
         self._configure(self._key_idx)
 
-    def _get_model(self) -> genai.GenerativeModel:
-        return genai.GenerativeModel(MODEL_NAME)
+    def _do_configure(self, idx):
+        self._client = genai.Client(api_key=self._api_keys[idx])
+
+    def _get_client(self):
+        try:
+            from services.openai_service import _client
+            return _client
+        except Exception:
+            return self._client
 
     def _rotate_key(self):
         self._key_idx = (self._key_idx + 1) % len(self._api_keys)
@@ -59,8 +67,11 @@ class GeminiService:
         last_error = None
         for _ in range(len(self._api_keys)):
             try:
-                model = self._get_model()
-                response = model.generate_content(prompt)
+                client = self._get_client()
+                response = client.models.generate_content(
+                    model=MODEL_NAME,
+                    contents=prompt,
+                )
                 return (response.text or "").strip()
             except Exception as e:
                 last_error = e
