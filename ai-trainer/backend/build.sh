@@ -10,7 +10,42 @@ python manage.py collectstatic --noinput || echo "WARNING: collectstatic failed 
 echo "=== Step 3: Running migrations ==="
 python manage.py migrate
 
-echo "=== Step 4: Creating superuser (if not exists) ==="
+echo "=== Step 4: Seeding aptitude data ==="
+python manage.py seed_aptitude 2>&1 || echo "WARNING: seed_aptitude failed but continuing..."
+
+echo "=== Step 5: Seeding learning topics (no YouTube API calls) ==="
+python manage.py seed_topics --skip-youtube 2>&1 || echo "WARNING: seed_topics failed but continuing..."
+
+echo "=== Step 6: Syncing aptitude topics to learning page ==="
+python -c "
+import os, django
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ai_trainer.settings')
+django.setup()
+from apps.aptitude.models import AptitudeTopic
+from apps.learning.models import Topic
+from django.utils.text import slugify
+
+synced = 0
+for apt in AptitudeTopic.objects.all():
+    has_questions = apt.questions.count() > 0
+    defaults = {
+        'category': apt.category if apt.category in dict(Topic.CATEGORY_CHOICES) else 'quantitative',
+        'icon': apt.icon or '📘',
+        'level': apt.level or 'Beginner',
+        'definition': apt.definition or '',
+        'has_quiz': has_questions,
+        'is_archived': False,
+        'order': apt.order,
+    }
+    topic, created = Topic.objects.update_or_create(name=apt.name, defaults=defaults)
+    if not topic.slug:
+        topic.slug = slugify(topic.name)
+        topic.save()
+    synced += 1
+print(f'Synced {synced} aptitude topics to learning page.')
+" 2>&1 || echo "WARNING: sync step failed but continuing..."
+
+echo "=== Step 7: Creating superuser (if not exists) ==="
 python -c "
 import os, django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ai_trainer.settings')

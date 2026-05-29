@@ -31,11 +31,23 @@ class Command(BaseCommand):
         # Locate the aptitudeData.ts file
         # settings.BASE_DIR = .../ai-trainer/backend
         # We need           = .../ai-trainer/frontend/src/data/aptitudeData.ts
-        ts_path = os.path.join(str(settings.BASE_DIR), '..', 'frontend', 'src', 'data', 'aptitudeData.ts')
-        ts_path = os.path.normpath(ts_path)
+        relative_path = os.path.join('frontend', 'src', 'data', 'aptitudeData.ts')
+        candidates = [
+            os.path.normpath(os.path.join(str(settings.BASE_DIR), '..', relative_path)),
+            os.path.normpath(os.path.join(os.getcwd(), '..', relative_path)),
+            # Render sometimes puts repo at /opt/render/project/src/
+            os.path.normpath(os.path.join('/opt/render/project/src', 'ai-trainer', relative_path)),
+        ]
 
-        if not os.path.exists(ts_path):
-            self.stderr.write(self.style.ERROR(f'File not found: {ts_path}'))
+        ts_path = None
+        for candidate in candidates:
+            self.stdout.write(f'  Checking: {candidate}')
+            if os.path.exists(candidate):
+                ts_path = candidate
+                break
+
+        if not ts_path:
+            self.stderr.write(self.style.ERROR(f'File not found. Tried: {candidates}'))
             return
 
         self.stdout.write(f'Reading {ts_path}...')
