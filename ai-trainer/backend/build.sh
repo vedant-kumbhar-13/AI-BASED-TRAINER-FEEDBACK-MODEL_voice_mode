@@ -28,7 +28,9 @@ from django.utils.text import slugify
 synced = 0
 for apt in AptitudeTopic.objects.all():
     has_questions = apt.questions.count() > 0
+    slug = slugify(apt.name)
     defaults = {
+        'name': apt.name,
         'category': apt.category if apt.category in dict(Topic.CATEGORY_CHOICES) else 'quantitative',
         'icon': apt.icon or '📘',
         'level': apt.level or 'Beginner',
@@ -37,10 +39,7 @@ for apt in AptitudeTopic.objects.all():
         'is_archived': False,
         'order': apt.order,
     }
-    topic, created = Topic.objects.update_or_create(name=apt.name, defaults=defaults)
-    if not topic.slug:
-        topic.slug = slugify(topic.name)
-        topic.save()
+    topic, created = Topic.objects.update_or_create(slug=slug, defaults=defaults)
     synced += 1
 print(f'Synced {synced} aptitude topics to learning page.')
 " 2>&1 || echo "WARNING: sync step failed but continuing..."
