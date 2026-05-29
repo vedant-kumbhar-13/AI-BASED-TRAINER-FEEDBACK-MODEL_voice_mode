@@ -70,7 +70,7 @@ Generate the HTML tutorial now:"""
                 )
                 
                 # Check if generated content was blocked by safety settings
-                if hasattr(response, 'prompt_feedback') and response.prompt_feedback.block_reason:
+                if hasattr(response, 'prompt_feedback') and response.prompt_feedback and hasattr(response.prompt_feedback, 'block_reason') and response.prompt_feedback.block_reason:
                     raise Exception(f"Prompt blocked: {response.prompt_feedback.block_reason}")
                 
                 html_content = response.text.strip()
