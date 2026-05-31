@@ -307,6 +307,70 @@ const AptitudePerformanceSection = () => {
   const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
   const bestScore = scores.length > 0 ? Math.max(...scores) : 0;
   const totalAttempts = quizTopics.reduce((sum, t) => sum + (progress[t.id]?.attempts || 0), 0);
+
+  // Group topics by category
+  const categories = Object.entries(CATEGORY_INFO).map(([key, info]) => {
+    const topics = quizTopics.filter(t => t.category === key);
+    return { key, ...info, topics };
+  }).filter(c => c.topics.length > 0);
+
+  return (
+    <div className="pt-8">
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-gray-800 mb-1">Aptitude Performance</h2>
+        <p className="text-xs text-gray-400">Track your aptitude quiz progress across topics</p>
+      </div>
+
+      {/* Overall Aptitude Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
+          <p className="text-2xl font-bold text-primary">{completedTopics}/{totalTopics}</p>
+          <p className="text-xs text-gray-400 mt-1">Topics Completed</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
+          <p className="text-2xl font-bold text-green-600">{bestScore > 0 ? `${bestScore}%` : 'NA'}</p>
+          <p className="text-xs text-gray-400 mt-1">Best Score</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
+          <p className="text-2xl font-bold text-blue-600">{avgScore > 0 ? `${avgScore}%` : 'NA'}</p>
+          <p className="text-xs text-gray-400 mt-1">Average Score</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
+          <p className="text-2xl font-bold text-purple-600">{totalAttempts}</p>
+          <p className="text-xs text-gray-400 mt-1">Total Attempts</p>
+        </div>
+      </div>
+
+      {/* Per-category breakdown */}
+      <div className="space-y-4">
+        {categories.map(cat => (
+          <div key={cat.key} className="bg-white border border-gray-200 rounded-lg p-5">
+            <h3 className={`text-sm font-bold ${cat.color} mb-3`}>{cat.icon} {cat.label}</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {cat.topics.map(topic => {
+                const p = progress[topic.id];
+                const completed = p?.completed;
+                const score = p?.bestScore ?? 0;
+                return (
+                  <Link
+                    key={topic.id}
+                    to={`/learning`}
+                    className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 transition group"
+                  >
+                    <span className={`w-2 h-2 rounded-full ${completed ? 'bg-green-500' : 'bg-gray-300'}`} />
+                    <span className="text-xs text-gray-700 group-hover:text-primary transition truncate">{topic.name}</span>
+                    {completed && (
+                      <span className="ml-auto text-xs font-bold text-green-600">{score}%</span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 };
 
 // Custom Tooltip Component
