@@ -18,6 +18,9 @@ import { Learning } from './pages/Learning';
 import { Quiz } from './pages/Quiz';
 import { QuizResults } from './pages/QuizResults';
 import { AboutUs } from './pages/AboutUs';
+import { TermsAndConditions } from './pages/TermsAndConditions';
+import { PrivacyPolicy } from './pages/PrivacyPolicy';
+import { ForgotPassword } from './pages/ForgotPassword';
 
 function App() {
   return (
@@ -26,6 +29,9 @@ function App() {
         {/* Auth Routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/terms" element={<TermsAndConditions />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
 
         {/* Protected Routes */}
         <Route path="/dashboard" element={

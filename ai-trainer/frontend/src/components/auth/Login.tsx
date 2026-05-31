@@ -94,7 +94,10 @@ export const Login = () => {
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
           <div className="lg:hidden text-center mb-8">
-            <h1 className="text-3xl font-bold text-primary">LearnHub</h1>
+            <div className="flex items-center justify-center gap-2">
+              <img src="/logo.png" alt="LearnHub" className="w-10 h-10 object-contain" />
+              <h1 className="text-3xl font-bold text-primary">LearnHub</h1>
+            </div>
           </div>
 
           {/* Form Header */}
@@ -158,9 +161,9 @@ export const Login = () => {
                 />
                 <span className="text-sm text-gray-700">Remember me</span>
               </label>
-              <a href="#" className="text-sm text-primary hover:underline font-medium">
+              <Link to="/forgot-password" className="text-sm text-primary hover:underline font-medium">
                 Forgot password?
-              </a>
+              </Link>
             </div>
 
             {/* Error Message */}

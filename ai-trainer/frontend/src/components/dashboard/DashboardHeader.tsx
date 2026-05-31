@@ -25,7 +25,7 @@ export const DashboardHeader = ({ onSidebarToggle, onLogout }: DashboardHeaderPr
 
         {/* Logo Text */}
         <div className="flex items-center gap-2">
-          <div className="w-2 h-8 bg-red-600 rounded-full"></div>
+          <img src="/logo.png" alt="LearnHub" className="w-8 h-8 object-contain" />
           <h1 className="text-xl font-bold text-gray-900">LearnHub</h1>
         </div>
       </div>

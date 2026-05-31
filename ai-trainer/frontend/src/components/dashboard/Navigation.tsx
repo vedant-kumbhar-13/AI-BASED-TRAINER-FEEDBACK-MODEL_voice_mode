@@ -36,7 +36,7 @@ export const Navigation = () => {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/dashboard" className="flex items-center gap-2">
-            <div className="w-2 h-8 bg-primary rounded-full"></div>
+            <img src="/logo.png" alt="LearnHub" className="w-8 h-8 object-contain" />
             <span className="text-xl font-bold text-gray-800">LearnHub</span>
           </Link>
 

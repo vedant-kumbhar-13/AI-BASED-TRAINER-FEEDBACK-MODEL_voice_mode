@@ -307,46 +307,13 @@ const AptitudePerformanceSection = () => {
   const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
   const bestScore = scores.length > 0 ? Math.max(...scores) : 0;
   const totalAttempts = quizTopics.reduce((sum, t) => sum + (progress[t.id]?.attempts || 0), 0);
-
-
-
-  return (
-    <div className="pt-8">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-1">Aptitude Learning Progress</h2>
-        <p className="text-xs text-gray-400">Track your quiz performance across {totalTopics} topics • 3 categories</p>
-      </div>
-
-      {/* Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-          <p className="text-2xl font-bold text-primary">{completedTopics}/{totalTopics}</p>
-          <p className="text-xs text-gray-400">Topics Completed</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-          <p className="text-2xl font-bold text-green-600">{bestScore > 0 ? `${bestScore}%` : 'NA'}</p>
-          <p className="text-xs text-gray-400">Best Score</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-          <p className="text-2xl font-bold text-yellow-600">{avgScore > 0 ? `${avgScore}%` : 'NA'}</p>
-          <p className="text-xs text-gray-400">Average Score</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-          <p className="text-2xl font-bold text-gray-800">{totalAttempts > 0 ? totalAttempts : 'NA'}</p>
-          <p className="text-xs text-gray-400">Total Attempts</p>
-        </div>
-      </div>
-
-
-    </div>
-  );
 };
 
 // Custom Tooltip Component
 const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
-    return (
+    return (  
       <div className="bg-white px-4 py-2 border border-gray-200 rounded-lg shadow-lg">
         <p className="text-xs font-bold text-gray-800">{data.date}</p>
         <p className="text-xs text-primary">Score: {data.score}/100</p>

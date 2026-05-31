@@ -138,7 +138,10 @@ export const Register = () => {
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
           <div className="lg:hidden text-center mb-8">
-            <h1 className="text-3xl font-bold text-primary">LearnHub</h1>
+            <div className="flex items-center justify-center gap-2">
+              <img src="/logo.png" alt="LearnHub" className="w-10 h-10 object-contain" />
+              <h1 className="text-3xl font-bold text-primary">LearnHub</h1>
+            </div>
           </div>
 
           {/* Form Header */}
@@ -248,13 +251,13 @@ export const Register = () => {
               />
               <label className="text-sm text-gray-600">
                 I agree to the{' '}
-                <a href="#" className="text-primary hover:underline font-bold">
+                <Link to="/terms" className="text-primary hover:underline font-bold">
                   Terms & Conditions
-                </a>{' '}
+                </Link>{' '}
                 and{' '}
-                <a href="#" className="text-primary hover:underline font-bold">
+                <Link to="/privacy" className="text-primary hover:underline font-bold">
                   Privacy Policy
-                </a>
+                </Link>
               </label>
             </div>
 
